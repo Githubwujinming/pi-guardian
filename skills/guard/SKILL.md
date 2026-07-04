@@ -10,12 +10,21 @@ allowed-tools: Agent, ask_user_question, Write, herdr, guard_pane, respond
 # Guard
 
 Monitor a herdr pane and auto-respond to questions and prompts during
-development workflows. Run `/skill:guard --pane <id>` in one pane to
-watch another pane.
+development workflows. Supports natural language input — you can say
+"监控左边的 pane" or "监控第 2 个 pane" and the agent will resolve
+it to the correct pane ID automatically.
 
 ## Input
 
-`$ARGUMENTS` — parameters in `--key value` format.
+`$ARGUMENTS` — natural language description or `--key value` parameters.
+
+When using natural language, describe which pane to monitor:
+- **按位置**: `左边的 pane`, `右边的 pane`, `上面的`, `下面的`
+- **按顺序**: `第1个 pane`, `第2个 pane`, `最后一个 pane`
+- **按别名**: `监控 w1:p1`, `监控 server-pane`
+- **按用途**: `监控正在运行 implement 的 pane`, `监控右边的那个 pane`
+
+Explicit `--key value` parameters (for scripting / precise control):
 
 - `--pane <id>` (required) — Pane ID or alias to monitor
 - `--plan <path>` (optional) — Plan document path for context (the agent references it)
@@ -25,9 +34,24 @@ watch another pane.
 
 ## Steps
 
-### Step 1: Parse Parameters
+### Step 1: Resolve Pane Reference
 
-Extract `--pane`, `--plan`, `--interval`, `--patterns`, `--timeout` from `$ARGUMENTS`.
+If `$ARGUMENTS` contains `--pane`, parse it directly (see Input section above).
+
+Otherwise, interpret `$ARGUMENTS` as natural language and resolve the target pane:
+
+1. **List available panes**: run `herdr list` to get all panes with their IDs,
+   aliases, workspace/tab positions, and agent statuses.
+2. **Map descriptions to pane IDs**:
+   - `左边的` / `右边的`: Use the list ordering — panes are typically ordered
+     left-to-right. The first pane is "左边的", the second is "右边的".
+   - `第N个`: The Nth pane in the `herdr list` output (1-based).
+   - `正在运行 X 的`: Filter by alias, agent status, or tab context.
+   - `别名/ID`: Direct match against pane alias or ID.
+3. **Ask the user if ambiguous**: If multiple panes match or you can't determine
+   which pane is meant, use `ask_user_question` to clarify.
+
+Once resolved, set `<pane>` to the pane ID.
 
 ### Step 2: Start Guard Loop
 
