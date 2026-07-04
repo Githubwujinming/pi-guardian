@@ -25,14 +25,23 @@ workflows.
 ## Installation
 
 ```bash
-# Local development (from project root):
-pi install .
+# Install directly from GitHub:
+pi install git:github.com/Githubwujinming/pi-guardian
 
-# Or install to a specific pi environment:
-pis pkgs install . <env-name>
+# Or install to a specific pi environment with pis:
+pis pkgs install git:github.com/Githubwujinming/pi-guardian vibe-rpiv
 ```
 
-Requires `@ogulcancelik/pi-herdr` (peer dependency).
+### Local development
+
+```bash
+git clone git@github.com:Githubwujinming/pi-guardian.git
+cd pi-guardian
+npm install
+pi install .
+```
+
+Requires `@ogulcancelik/pi-herdr` (peer dependency, auto-installed).
 
 ## Usage
 
