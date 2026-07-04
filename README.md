@@ -1,4 +1,4 @@
-# @juicesharp/rpiv-guardian
+# @githubwujinming/pi-guardian
 
 Pi extension for monitoring herdr panes — auto-responds to
 `ask_user_question` and natural-language prompts during development
@@ -25,10 +25,14 @@ workflows.
 ## Installation
 
 ```bash
-pi install npm:@juicesharp/rpiv-guardian
+# Local development (from project root):
+pi install .
+
+# Or install to a specific pi environment:
+pis pkgs install . <env-name>
 ```
 
-Requires `@ogulcancelik/pi-herdr` (installed automatically as a peer dependency).
+Requires `@ogulcancelik/pi-herdr` (peer dependency).
 
 ## Usage
 
@@ -39,6 +43,7 @@ Requires `@ogulcancelik/pi-herdr` (installed automatically as a peer dependency)
 ```
 
 The guardian agent will:
+
 1. Call `guard_pane` to start monitoring
 2. Auto-respond to simple confirmation prompts (Enter)
 3. Escalate detected events to you for LLM-based decision
@@ -69,7 +74,7 @@ Simply stop calling `guard_pane` in the loop, or set a `timeout`:
 Long-running monitor for a herdr pane. Three detection strategies:
 
 | Strategy | Description | Threshold |
-|---|---|---|
+| --- | --- | --- |
 | Pattern matching | Regex patterns against pane output | Instant |
 | State change | Pane revision / agent_status changes | Per poll |
 | Stall detection | No output change for N seconds | 30s (normal) / 5min (subagent) |
@@ -82,7 +87,7 @@ All other events escalate to the calling agent for LLM decision.
 Send response to a monitored pane:
 
 | Mode | Parameter | Use case |
-|---|---|---|
+| --- | --- | --- |
 | Single-select | `optionIndex` | `ask_user_question` option |
 | Multi-select | `options[]` | Toggle checkboxes, then Next |
 | Text input | `text` | "Type something." or commands |
@@ -90,6 +95,7 @@ Send response to a monitored pane:
 ## Events monitored
 
 Built-in patterns cover:
+
 - rpiv workflow phase transitions (implement, blueprint, design, plan)
 - `ask_user_question` patterns
 - Confirmation prompts (yes/no, continue, press Enter)

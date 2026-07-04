@@ -1,5 +1,5 @@
 {
-  "name": "@juicesharp/rpiv-guardian",
+  "name": "@githubwujinming/pi-guardian",
   "version": "0.1.0",
   "description": "Pi extension for monitoring herdr panes — auto-responds to ask_user_question and natural-language prompts during development workflows",
   "keywords": [
@@ -11,7 +11,7 @@
   ],
   "type": "module",
   "license": "MIT",
-  "author": "juicesharp",
+  "author": "Githubwujinming",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Githubwujinming/pi-guardian.git"
@@ -41,6 +41,9 @@
   "pi": {
     "extensions": [
       "./index.ts"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "peerDependencies": {
