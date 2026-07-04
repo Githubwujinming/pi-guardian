@@ -86,13 +86,23 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
     regex: /按.*回车|press.*enter|按下.*Enter|hit.*enter/i,
   },
 
+  // --- subagent delegation patterns ---
+  {
+    name: "subagent-start",
+    regex: /(Background|New)\s+agent\s+(started|created|dispatched|launched).*background/i,
+  },
+  {
+    name: "subagent-complete",
+    regex: /Background\s+agent.*completed|subagent.*result|task-notification.*completed/i,
+  },
+
   // --- completion / summary ---
   {
     name: "completion-summary",
     regex: /(总结|summary|overview|完成|done!)/im,
   },
 
-  // --- catch-all for any question mark at end of line ---
+  // --- catch-all for any question mark at end of line (LOW priority — checked LAST) ---
   {
     name: "generic-question",
     regex: /[?？]\s*$/m,

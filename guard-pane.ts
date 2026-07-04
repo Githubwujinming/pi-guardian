@@ -1,15 +1,17 @@
 /**
  * guard-pane.ts — guard_pane tool for monitoring herdr pane output.
  *
- * The guard_pane tool creates a long-running watch on a target herdr pane,
- * using three detection strategies (state-change, pattern-matching, stall-detection)
- * to identify when the pane is waiting for user input, and optionally auto-responds.
+ * Architecture: Agent loop + minimal autoRespond 混合模式。
+ * - Auto-respond only for deterministic confirmations (Enter)
+ * - All other events RETURN to the calling agent (LLM) with full context
+ * - The guardian agent decides whether/how to respond via the `respond` tool
+ * - After responding, the agent calls guard_pane again to resume monitoring
  *
- * Implements a polling loop pattern similar to pi-herdr's watch/wait_agent actions:
- *  - while(true) loop with throwIfAborted at top of each iteration
- *  - Parallel polling via pi.exec("herdr", ...) with signal propagation
- *  - onUpdate heartbeat at configurable intervals
- *  - try/finally cleanup to mark watch status as "stopped"
+ * Detection strategies:
+ *   A. State-change: pane agent_status transitions
+ *   B. Pattern-matching: regex patterns against output (with dedup + cooldown)
+ *   C. Subagent-aware stall: suppresses stall when subagent is active
+ *   D. Pane-disappearance: stops after N consecutive read failures
  *
  * @module guard-pane
  */
@@ -24,8 +26,8 @@ import type {
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "@sinclair/typebox";
 import { sleepWithSignal, throwIfAborted } from "./sleep.js";
-import { setActiveWatch, removeActiveWatch, type ActiveWatch } from "./state.js";
-import { matchBuiltinPatterns } from "./patterns.js";
+import { setActiveWatch, removeActiveWatch, snapshotWatches, type ActiveWatch } from "./state.js";
+import { matchBuiltinPatterns, type PatternMatch } from "./patterns.js";
 
 // ---------------------------------------------------------------------------
 // Module-level state
@@ -33,20 +35,28 @@ import { matchBuiltinPatterns } from "./patterns.js";
 
 let watchCounter = 0;
 
+// Map<patternName, lastTriggeredAt> for dedup
+const patternCooldowns = new Map<string, number>();
+const PATTERN_COOLDOWN_MS = 15_000; // same pattern won't re-trigger within 15s
+
 // ---------------------------------------------------------------------------
 // Types for tool result details and render state
 // ---------------------------------------------------------------------------
 
+export interface GuardPaneEvent {
+  type: "pattern_match" | "stall_detected";
+  patternName?: string;
+  matchedText?: string;
+}
+
 export interface GuardPaneDetails {
   watchId: string;
   paneId: string;
-  responses: number;
-  autoRespond: boolean;
-  events: number;
-}
-
-interface GuardPaneRenderState {
-  startedAt: number;
+  event?: GuardPaneEvent;
+  context?: string;
+  elapsed: number;
+  stopped: boolean;
+  subagentActive: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,13 +78,13 @@ const guardPaneParams = Type.Object({
 
   /**
    * Overall timeout in ms. When set, the watch stops automatically after
-   * this duration, even if no stall is detected.
+   * this duration and returns a timeout event to the agent.
    */
   timeout: Type.Optional(Type.Number()),
 
   /**
-   * When true (default), automatically responds to known confirmation
-   * and proceed patterns.
+   * When true (default), automatically sends Enter for simple confirmation patterns.
+   * All non-trivial events are escalated to the calling agent for LLM-based decision.
    */
   autoRespond: Type.Optional(Type.Boolean({ default: true })),
 });
@@ -82,41 +92,32 @@ const guardPaneParams = Type.Object({
 type GuardPaneArgs = Static<typeof guardPaneParams>;
 
 // ---------------------------------------------------------------------------
-// Auto-respond logic
+// Auto-respond logic (minimal — only deterministic confirmations)
 // ---------------------------------------------------------------------------
 
 /**
- * Auto-respond based on matched pattern type.
+ * Minimal auto-respond: only handles deterministic confirmations.
  *
- * - confirm-prompt / press-enter / yes-no: send Enter to confirm.
- * - next-step / rpiv-chain-forward: send a proceed command (requires planPath).
- * - All other patterns are logged but not auto-responded.
+ * - confirm-prompt / press-enter / yes-no: send Enter (safe, predictable)
+ * - All other patterns: return undefined → escalate to LLM
  *
- * Returns a short description string when a response was sent, or undefined
- * when no action was taken.
+ * This avoids auto-respond loops because Enter is idempotent for
+ * confirmation prompts: pressing Enter on an already-confirmed prompt
+ * is a no-op rather than a new action.
  */
 async function tryAutoRespond(
   pi: ExtensionAPI,
-  watch: ActiveWatch,
   paneId: string,
-  _output: string,
   matchName: string,
 ): Promise<string | undefined> {
-  const autoConfirm = new Set(["confirm-prompt", "press-enter", "yes-no"]);
-  const autoProceed = new Set(["next-step", "rpiv-chain-forward"]);
+  const safeAuto = new Set(["confirm-prompt", "press-enter", "yes-no"]);
 
-  if (autoConfirm.has(matchName)) {
+  if (safeAuto.has(matchName)) {
     await pi.exec("herdr", ["send-keys", paneId, "Enter"], { timeout: 5000 });
-    return "sent Enter";
+    return "sent Enter (auto-confirm)";
   }
 
-  if (autoProceed.has(matchName) && watch.planPath) {
-    await pi.exec("herdr", ["run", paneId, `continue with plan: ${watch.planPath}`], {
-      timeout: 5000,
-    });
-    return "sent proceed command";
-  }
-
+  // Everything else → escalate to agent for LLM decision
   return undefined;
 }
 
@@ -129,22 +130,14 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
     name: "guard_pane",
     label: "Guard Pane",
     description:
-      "Monitor a herdr pane for questions and prompts during development workflows. " +
-      "Detects phase transitions, confirmation prompts, and questions. " +
-      "When autoRespond is enabled, automatically sends Enter for confirmations " +
-      "and proceed commands for next-step prompts.",
-    promptSnippet:
-      "guard_pane: monitor a herdr pane for workflow questions and auto-respond",
-    promptGuidelines: [
-      "Use guard_pane to monitor a pane that is executing a workflow and may wait for user input",
-      "Set autoRespond: true to automatically handle common confirmation prompts",
-      "Pattern matching detects rpiv workflow phase transitions, questions, and confirmations",
-      "Set timeout to automatically stop monitoring after a period of inactivity",
-    ],
+      "Monitor a herdr pane for questions and prompts. " +
+      "Auto-responds to simple confirmations (Enter); escalates all other events " +
+      "to the calling agent with full context for LLM-based decision. " +
+      "After handling an event, call guard_pane again to resume monitoring.",
     parameters: guardPaneParams,
 
     // -----------------------------------------------------------------------
-    // Execute: long-running monitoring loop
+    // Execute: polling loop that RETURNS on events (does not loop forever)
     // -----------------------------------------------------------------------
     execute: async (
       _toolCallId: string,
@@ -160,11 +153,10 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
       const autoRespond = params.autoRespond ?? true;
       const watchTimeout = params.timeout;
 
-      // Create an internal AbortController so external tools (e.g. respond)
-      // can signal this watch to stop. Merge with the pi-provided signal.
+      // Internal AbortController for clean shutdown
       const abortController = new AbortController();
 
-      // Register active watch so respond tool can find it
+      // Register active watch
       const watch: ActiveWatch = {
         watchId,
         paneId: params.pane,
@@ -179,279 +171,253 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
       };
       setActiveWatch(watchId, watch);
 
-      // Merge external signal with internal abort controller
+      // Merge external signal
       if (signal) {
         if (signal.aborted) {
           abortController.abort();
         } else {
-          const onExternalAbort = (): void => {
+          const onAbort = (): void => {
             abortController.abort();
-            signal?.removeEventListener("abort", onExternalAbort);
+            signal?.removeEventListener("abort", onAbort);
           };
-          signal.addEventListener("abort", onExternalAbort, { once: true });
+          signal.addEventListener("abort", onAbort, { once: true });
         }
       }
-
       const mergedSignal = abortController.signal;
 
-      let eventCount = 0;
-      let responseCount = 0;
+      // State
       let lastOutput = "";
       let stallStart: number | null = null;
+      let subagentActive = false;
+      let subagentStartedAt: number | null = null;
+      let readFailCount = 0;
+      const MAX_READ_FAILURES = 5;
 
       try {
-        // Initial start notification
+        // Initial heartbeat
         if (onUpdate) {
           onUpdate({
-            content: [
-              {
-                type: "text",
-                text:
-                  `[guardian] Watch ${watchId} started on pane ` +
-                  `${params.pane} (interval=${interval}ms, autoRespond=${autoRespond})`,
-              },
-            ],
-            details: {
-              watchId,
-              paneId: params.pane,
-              responses: 0,
-              autoRespond,
-              events: 0,
-            },
+            content: [{ type: "text", text: `[guardian] Watching ${params.pane}...` }],
+            details: { watchId, paneId: params.pane, elapsed: 0, stopped: false, subagentActive: false },
           });
         }
 
-        // ---- Main polling loop ----
         while (true) {
           throwIfAborted(mergedSignal, "guard_pane");
 
           const now = Date.now();
           const elapsed = now - startedAt;
 
-          // Overall timeout check
+          // Timeout check
           if (watchTimeout && elapsed > watchTimeout) {
-            if (onUpdate) {
-              onUpdate({
-                content: [
-                  {
-                    type: "text",
-                    text: `[guardian] Timeout reached (${watchTimeout}ms) on ${params.pane}`,
-                  },
-                ],
-                details: {
-                  watchId,
-                  paneId: params.pane,
-                  responses: responseCount,
-                  autoRespond,
-                  events: eventCount,
-                },
-              });
-            }
-            break;
+            return {
+              content: [{ type: "text", text: `[guardian] Timeout after ${watchTimeout}ms on ${params.pane}` }],
+              details: { watchId, paneId: params.pane, elapsed: Math.floor(elapsed / 1000), stopped: true, subagentActive },
+            };
           }
 
-          // Attempt to read pane output
+          // ---- Read pane output ----
           let output = "";
           try {
-            const readResult = await pi.exec("herdr", ["read", params.pane], {
+            const readResult = await pi.exec("herdr", ["read", params.pane, "--lines", "200"], {
               signal: mergedSignal,
               timeout: Math.min(interval + 2000, 10000),
             });
             output = readResult.stdout;
+            readFailCount = 0; // reset on success
           } catch (readErr: unknown) {
             if (mergedSignal.aborted) throw readErr;
-            // Log read errors but keep polling
-            console.warn(`[guardian] Read error on ${params.pane}:`, readErr);
+            readFailCount++;
+            console.warn(`[guardian] Read error #${readFailCount} on ${params.pane}:`, readErr);
+
+            // Pane disappeared detection
+            if (readFailCount >= MAX_READ_FAILURES) {
+              return {
+                content: [{ type: "text", text: `[guardian] Pane ${params.pane} unreachable after ${MAX_READ_FAILURES} read failures` }],
+                details: { watchId, paneId: params.pane, elapsed: Math.floor(elapsed / 1000), stopped: true, subagentActive },
+              };
+            }
+            await sleepWithSignal(interval, mergedSignal);
+            continue;
           }
 
-          // ---------------------------------------------------------------
-          // Detection Strategy 1: State-change
-          // ---------------------------------------------------------------
           const hasChanged = output !== lastOutput && output.length > 0;
 
           if (hasChanged) {
             lastOutput = output;
-            stallStart = null; // reset stall timer on new output
-
-            // ---------------------------------------------------------------
-            // Detection Strategy 2: Pattern-matching
-            // ---------------------------------------------------------------
-            const match = matchBuiltinPatterns(output, userPatterns);
-            if (match) {
-              eventCount++;
-
-              // Auto-respond if applicable
-              let responseMsg: string | undefined;
-              if (autoRespond) {
-                responseMsg = await tryAutoRespond(
-                  pi,
-                  watch,
-                  params.pane,
-                  output,
-                  match.patternName,
-                ).catch(() => undefined);
-                if (responseMsg) responseCount++;
-              }
-
-              // Notify via onUpdate
-              if (onUpdate) {
-                const text = responseMsg
-                  ? `[guardian] Match "${match.patternName}" on ${params.pane} \u2014 ${responseMsg}`
-                  : `[guardian] Match "${match.patternName}" on ${params.pane} (no auto-respond)`;
-                onUpdate({
-                  content: [{ type: "text", text }],
-                  details: {
-                    watchId,
-                    paneId: params.pane,
-                    responses: responseCount,
-                    autoRespond,
-                    events: eventCount,
-                  },
-                });
-              }
-            }
-          }
-
-          // ---------------------------------------------------------------
-          // Detection Strategy 3: Stall-detection
-          // ---------------------------------------------------------------
-          if (!hasChanged && output.length === 0 && lastOutput.length > 0) {
-            // Output was cleared — treat as state change
-            lastOutput = output;
             stallStart = null;
-          } else if (!hasChanged && lastOutput.length > 0) {
-            // Output hasn't changed — track stall
-            if (stallStart === null) {
-              stallStart = now;
-            } else {
-              const stallDuration = now - stallStart;
-              // Emit stall warning when unchanged for >30s
-              if (stallDuration > 30000 && stallDuration % 10000 < interval) {
-                if (onUpdate) {
-                  onUpdate({
-                    content: [
-                      {
-                        type: "text",
-                        text: `[guardian] Stall detected on ${params.pane} (${Math.floor(stallDuration / 1000)}s no change)`,
-                      },
-                    ],
-                    details: {
-                      watchId,
-                      paneId: params.pane,
-                      responses: responseCount,
-                      autoRespond,
-                      events: eventCount,
-                    },
-                  });
+
+            // ---- Subagent detection ----
+            // When main agent dispatches a background subagent, the output stalls
+            // until the subagent returns. Detect this and suppress stall detection.
+            if (output.match(/(Background|New)\s+agent\s+(started|created|dispatched|launched).*background/i)) {
+              subagentActive = true;
+              subagentStartedAt = now;
+            }
+            if (output.match(/Background\s+agent.*completed|subagent.*result/i)) {
+              subagentActive = false;
+              subagentStartedAt = null;
+            }
+
+            // ---- Pattern matching ----
+            // Check dedup: skip patterns that triggered within COOLDOWN period
+            const match = matchBuiltinPatterns(output, userPatterns);
+            if (match && !isPatternOnCooldown(match.patternName)) {
+              markPatternCooldown(match.patternName);
+
+              // Auto-respond (only safe confirmations)
+              if (autoRespond) {
+                const responseMsg = await tryAutoRespond(pi, params.pane, match.patternName)
+                  .catch(() => undefined);
+                if (responseMsg) {
+                  if (onUpdate) {
+                    onUpdate({
+                      content: [{ type: "text", text: `[guardian] ${responseMsg} on ${params.pane}` }],
+                      details: { watchId, paneId: params.pane, elapsed: Math.floor(elapsed / 1000), stopped: false, subagentActive },
+                    });
+                  }
+                  continue; // keep monitoring
                 }
               }
+
+              // Escalate to agent: return event context for LLM decision
+              return {
+                content: [{
+                  type: "text",
+                  text: `[guardian] Event in ${params.pane}: "${match.patternName}" = "${match.matchedText}"`,
+                }],
+                details: {
+                  watchId,
+                  paneId: params.pane,
+                  event: { type: "pattern_match", patternName: match.patternName, matchedText: match.matchedText },
+                  context: output.slice(-3000),
+                  elapsed: Math.floor(elapsed / 1000),
+                  stopped: false,
+                  subagentActive,
+                },
+              };
             }
           }
 
-          // Heartbeat: emit at least every 10s so the TUI shows progress
+          // ---- Stall detection (subagent-aware) ----
+          if (subagentActive) {
+            // During subagent wait, use a much longer threshold (5min instead of 30s)
+            if (stallStart !== null) {
+              const stallDuration = now - stallStart;
+              if (stallDuration > 300_000) { // 5 min
+                subagentActive = false;
+                return {
+                  content: [{ type: "text", text: `[guardian] Subagent stall on ${params.pane}: ${Math.floor(stallDuration / 1000)}s` }],
+                  details: {
+                    watchId, paneId: params.pane,
+                    event: { type: "stall_detected", patternName: "subagent-stall", matchedText: `${Math.floor(stallDuration / 1000)}s subagent wait` },
+                    context: output.slice(-2000),
+                    elapsed: Math.floor(elapsed / 1000), stopped: false, subagentActive: true,
+                  },
+                };
+              }
+            } else if (!hasChanged && lastOutput.length > 0) {
+              stallStart = now;
+            }
+          } else {
+            // Normal stall detection (30s)
+            if (!hasChanged && lastOutput.length > 0) {
+              if (stallStart === null) {
+                stallStart = now;
+              } else if (now - stallStart > 30_000) {
+                const context = output.slice(-2000);
+                return {
+                  content: [{ type: "text", text: `[guardian] Stall on ${params.pane}: 30s no output change` }],
+                  details: {
+                    watchId, paneId: params.pane,
+                    event: { type: "stall_detected", patternName: "stall-fallback", matchedText: "30s no output change" },
+                    context,
+                    elapsed: Math.floor(elapsed / 1000), stopped: false, subagentActive: false,
+                  },
+                };
+              }
+            }
+          }
+
+          // Periodic heartbeat
           if (onUpdate && elapsed % 10000 < interval) {
             onUpdate({
-              content: [
-                {
-                  type: "text",
-                  text: `[guardian] Watching ${params.pane} (${Math.floor(elapsed / 1000)}s)`,
-                },
-              ],
-              details: {
-                watchId,
-                paneId: params.pane,
-                responses: responseCount,
-                autoRespond,
-                events: eventCount,
-              },
+              content: [{ type: "text", text: `[guardian] Watching ${params.pane} (${Math.floor(elapsed / 1000)}s)` }],
+              details: { watchId, paneId: params.pane, elapsed: Math.floor(elapsed / 1000), stopped: false, subagentActive },
             });
           }
 
           await sleepWithSignal(interval, mergedSignal);
-        }
-      } catch (err: unknown) {
-        if (mergedSignal.aborted) {
-          // Expected abort — tool call was cancelled externally
-        } else {
-          throw err;
         }
       } finally {
         watch.status = "stopped";
         removeActiveWatch(watchId);
       }
 
+      // Unreachable — but TypeScript needs a return
       return {
-        content: [
-          {
-            type: "text",
-            text:
-              `guard_pane ${params.pane} stopped ` +
-              `(events: ${eventCount}, responses: ${responseCount})`,
-          },
-        ],
-        details: {
-          watchId,
-          paneId: params.pane,
-          responses: responseCount,
-          autoRespond,
-          events: eventCount,
-        },
+        content: [{ type: "text", text: `[guardian] Stopped ${params.pane}` }],
+        details: { watchId, paneId: params.pane, elapsed: Math.floor((Date.now() - startedAt) / 1000), stopped: true, subagentActive },
       };
     },
 
     // -----------------------------------------------------------------------
-    // renderCall: show the tool call in the TUI
+    // renderCall
     // -----------------------------------------------------------------------
-    renderCall: (
-      args: GuardPaneArgs,
-      theme,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _context: any,
-    ) => {
-      const parts: string[] = [theme.bold("guard_pane")];
-
+    renderCall: (args: GuardPaneArgs, theme) => {
+      const parts = [theme.bold("guard_pane")];
       parts.push(`  pane: ${args.pane}`);
       if (args.plan) parts.push(`  plan: ${args.plan}`);
       parts.push(`  interval: ${args.interval ?? 500}ms`);
-      if (args.patterns && args.patterns.length > 0) {
-        parts.push(`  patterns: ${args.patterns.join(", ")}`);
-      }
+      if (args.patterns?.length) parts.push(`  patterns: ${args.patterns.join(", ")}`);
       if (args.timeout) parts.push(`  timeout: ${args.timeout}ms`);
       parts.push(`  autoRespond: ${args.autoRespond ?? true}`);
-
       return new Text(parts.join("\n"));
     },
 
     // -----------------------------------------------------------------------
-    // renderResult: show the result / live status in the TUI
+    // renderResult
     // -----------------------------------------------------------------------
-    renderResult: (
-      result: AgentToolResult<GuardPaneDetails>,
-      options: ToolRenderResultOptions,
-      theme,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _context: any,
-    ) => {
+    renderResult: (result: AgentToolResult<GuardPaneDetails>, options: ToolRenderResultOptions, theme) => {
       const d = result.details;
       if (!d) return new Text("guard_pane completed");
 
       if (options.isPartial) {
-        // Partial / streaming view — show live status
-        const lines: string[] = [
-          theme.fg("warning", `\u25CC watching ${d.paneId}`),
-        ];
-        if (d.events > 0) lines.push(`  events: ${d.events}`);
-        if (d.responses > 0) lines.push(`  responses: ${d.responses}`);
-        return new Text(lines.join("\n"));
+        const parts = [theme.fg("warning", `\u25CC watching ${d.paneId}`)];
+        if (d.subagentActive) parts.push(theme.fg("accent", " [subagent]"));
+        return new Text(parts.join(""));
       }
 
-      // Final result — show summary
-      const lines: string[] = [
-        theme.fg("muted", `guard_pane ${d.paneId} \u2014 stopped`),
-        `  events: ${d.events}`,
-        `  responses: ${d.responses}`,
-      ];
-      return new Text(lines.join("\n"));
+      if (d.stopped) {
+        return new Text(
+          theme.fg("muted", `guard_pane ${d.paneId} \u2014 stopped (${d.elapsed}s)`)
+        );
+      }
+
+      if (d.event) {
+        const parts = [theme.fg("warning", `? ${d.paneId}`)];
+        parts.push(theme.fg("dim", ` \u203A ${d.event.patternName ?? d.event.type}`));
+        if (options.expanded && d.context) {
+          parts.push("\n" + theme.fg("dim", d.context.slice(0, 1000)));
+        }
+        return new Text(parts.join(""));
+      }
+
+      return new Text(theme.fg("success", `\u2713 ${d.paneId}`));
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Dedup helpers
+// ---------------------------------------------------------------------------
+
+function isPatternOnCooldown(patternName: string): boolean {
+  const last = patternCooldowns.get(patternName);
+  if (!last) return false;
+  return Date.now() - last < PATTERN_COOLDOWN_MS;
+}
+
+function markPatternCooldown(patternName: string): void {
+  patternCooldowns.set(patternName, Date.now());
 }
