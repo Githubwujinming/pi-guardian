@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.db-journal
+
+# Claude
+.claude/
+
+# Logs
+*.log
+
+*.log
+*.yml
+/tests/*
+.workbuddy/memory/*
+
+docs/*
+
+*/tests/
+
+scripts/
+test-results/
+
+*.png
+
+.rpiv/*
+.rpiv/
