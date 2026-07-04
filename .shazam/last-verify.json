@@ -1,0 +1,178 @@
+{
+  "timestamp": "2026-07-04T15:18:11.276Z",
+  "totalCount": 17,
+  "errorCount": 13,
+  "warningCount": 0,
+  "diagnostics": [
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 25,
+      "col": 8,
+      "endLine": 25,
+      "endCol": 41,
+      "severity": "error",
+      "code": "2307",
+      "message": "Cannot find module '@earendil-works/pi-coding-agent' or its corresponding type declarations."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 26,
+      "col": 22,
+      "endLine": 26,
+      "endCol": 46,
+      "severity": "error",
+      "code": "2307",
+      "message": "Cannot find module '@earendil-works/pi-tui' or its corresponding type declarations."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 27,
+      "col": 35,
+      "endLine": 27,
+      "endCol": 54,
+      "severity": "error",
+      "code": "2307",
+      "message": "Cannot find module '@sinclair/typebox' or its corresponding type declarations."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 28,
+      "col": 49,
+      "endLine": 28,
+      "endCol": 61,
+      "severity": "error",
+      "code": "2307",
+      "message": "Cannot find module './sleep.js' or its corresponding type declarations."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 29,
+      "col": 86,
+      "endLine": 29,
+      "endCol": 98,
+      "severity": "error",
+      "code": "2307",
+      "message": "Cannot find module './state.js' or its corresponding type declarations."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 30,
+      "col": 57,
+      "endLine": 30,
+      "endCol": 72,
+      "severity": "error",
+      "code": "2307",
+      "message": "Cannot find module './patterns.js' or its corresponding type declarations."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 367,
+      "col": 39,
+      "endLine": 367,
+      "endCol": 44,
+      "severity": "error",
+      "code": "7006",
+      "message": "Parameter 'theme' implicitly has an 'any' type."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 381,
+      "col": 97,
+      "endLine": 381,
+      "endCol": 102,
+      "severity": "error",
+      "code": "7006",
+      "message": "Parameter 'theme' implicitly has an 'any' type."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 29,
+      "col": 45,
+      "endLine": 29,
+      "endCol": 60,
+      "severity": "hint",
+      "code": "6133",
+      "message": "'snapshotWatches' is declared but its value is never read."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 30,
+      "col": 37,
+      "endLine": 30,
+      "endCol": 49,
+      "severity": "hint",
+      "code": "6133",
+      "message": "'PatternMatch' is declared but its value is never read."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 192,
+      "col": 11,
+      "endLine": 192,
+      "endCol": 28,
+      "severity": "hint",
+      "code": "6133",
+      "message": "'subagentStartedAt' is declared but its value is never read."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/guard-pane.ts",
+      "line": 358,
+      "col": 7,
+      "endLine": 361,
+      "endCol": 9,
+      "severity": "hint",
+      "code": "7027",
+      "message": "Unreachable code detected."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/audit.ts",
+      "line": 11,
+      "col": 43,
+      "endLine": 11,
+      "endCol": 52,
+      "severity": "error",
+      "code": "2591",
+      "message": "Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/audit.ts",
+      "line": 12,
+      "col": 22,
+      "endLine": 12,
+      "endCol": 33,
+      "severity": "error",
+      "code": "2591",
+      "message": "Cannot find name 'node:path'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/audit.ts",
+      "line": 83,
+      "col": 55,
+      "endLine": 83,
+      "endCol": 64,
+      "severity": "error",
+      "code": "2591",
+      "message": "Cannot find name 'node:fs'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/audit.ts",
+      "line": 91,
+      "col": 16,
+      "endLine": 91,
+      "endCol": 17,
+      "severity": "error",
+      "code": "7006",
+      "message": "Parameter 'l' implicitly has an 'any' type."
+    },
+    {
+      "file": "/tmp/pi-agent-e57f5adc-8036-4bd-136566bb/audit.ts",
+      "line": 92,
+      "col": 13,
+      "endLine": 92,
+      "endCol": 14,
+      "severity": "error",
+      "code": "7006",
+      "message": "Parameter 'l' implicitly has an 'any' type."
+    }
+  ]
+}
