@@ -38,6 +38,16 @@ Explicit `--key value` parameters (for scripting / precise control):
 
 If `$ARGUMENTS` contains `--pane`, parse it directly (see Input section above).
 
+Otherwise, if the user says **"继续"** or **"resume"** (with or without a pane reference):
+
+1. **Search session history** for the last `guard_pane` tool call (in the current
+   conversation or session branch). Extract its parameters: `pane`, `plan`,
+   `patterns`, `interval`, `timeout`.
+2. If the user specified a different pane (e.g., "继续值守右边的 pane"),
+   resolve the pane reference (see below) and use that instead.
+3. Call `guard_pane(pane=<pane>, plan=<plan>, interval=<interval>, ...)` with
+   the recovered parameters — no need to ask the user for them again.
+
 Otherwise, interpret `$ARGUMENTS` as natural language and resolve the target pane:
 
 1. **List available panes**: run `herdr list` to get all panes with their IDs,
