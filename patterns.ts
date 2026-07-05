@@ -26,12 +26,14 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
 	// **Next step:** `/skill:...` — implement/blueprint/plan 等技能的下一步建议
 	{
 		name: "next-step",
-		// 匹配各种格式的下一步提示，后跟 /skill:xxx 路径
-		// 格式可能有：
-		//   **Next step:** /skill:xxx  （英+加粗）
-		//   **下一步:** /skill:xxx     （中+加粗）
-		//   下一步： /skill:xxx        （中+无加粗）
-		regex: /(?:\*\*)?(?:Next step|下一步)(?:\*\*)?[：:]?\s*[`'"\s]*\/skill:\S+/i,
+		// 匹配所有格式的下一步提示，后跟 /skill:xxx 路径
+		// 注意冒号在关闭 ** 之前：**Next step:** `/skill:xxx
+		// 支持格式：
+		//   **Next step:** `/skill:xxx  （英+加粗+反引号）
+		//   **下一步：** `/skill:xxx     （中+全角冒号+加粗）
+		//   下一步： /skill:xxx        （中+全角冒号+无加粗）
+		//   Next step: /skill:xxx      （英+无加粗）
+		regex: /(?:\*\*)?(?:Next step|下一步)[：:]?(?:\*\*)?\s*[`'"\s]*\/skill:\S+/i,
 	},
 	// 💬 Follow-up: — 技能结束时的后续提示
 	{
