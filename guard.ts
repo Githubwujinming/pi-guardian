@@ -23,13 +23,10 @@ import { matchBuiltinPatterns } from "./patterns.js";
 // Module-level state
 // ---------------------------------------------------------------------------
 
+
 // Map<patternName, expireAt> for dedup
 const patternCooldowns = new Map<string, number>();
 const PATTERN_COOLDOWN_MS = 15_000;
-
-// 安全限制
-const MAX_AUTO_RESPOND = 10; // 单次值守最多自动执行 10 次命令
-const MAX_IDLE_MS = 120_000; // 120s 无新输出 → 闲置超时，返回 agent
 
 // ---------------------------------------------------------------------------
 // TypeBox schema — 参数校验（可靠，不走自然语言解析）
@@ -161,8 +158,6 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 			let lastOutput = "";
 			let stallStart: number | null = null;
 			let readFailCount = 0;
-			let autoRespondCount = 0; // 当前值守周期内自动执行的命令数
-			let lastActivityAt = Date.now(); // 最后一次有意义的输出变化时间
 			const MAX_READ_FAILURES = 5;
 
 			onUpdate?.({
@@ -239,7 +234,6 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 				const hasChanged = output !== lastOutput && output.length > 0;
 
 				if (hasChanged) {
-					lastActivityAt = now;
 					// 只对新追加的内容做模式匹配（避免旧内容反复触发）
 					const deltaOutput =
 						lastOutput.length > 0 && output.startsWith(lastOutput)
@@ -265,25 +259,6 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 						).catch(() => undefined);
 
 						if (responseMsg) {
-							autoRespondCount++;
-
-							// 安全限制：单次值守最多自动执行 N 次命令
-							if (autoRespondCount >= MAX_AUTO_RESPOND) {
-								return {
-									content: [
-										{
-											type: "text",
-											text:
-												`[guard] Max auto-respond (${MAX_AUTO_RESPOND}) reached on ${params.pane}`,
-										},
-									],
-									details: {
-										info: "max_auto_respond",
-										elapsed: Math.floor(elapsed / 1000),
-									},
-								};
-							}
-
 							if (onUpdate) {
 								onUpdate({
 									content: [
@@ -322,26 +297,6 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 							},
 						};
 					}
-				} else if (now - lastActivityAt > MAX_IDLE_MS) {
-					// 闲置超时：长时间无有意义输出，返回 agent 判断
-					return {
-						content: [
-							{
-								type: "text",
-								text: `[guard] Idle timeout on ${params.pane}: no activity for ${MAX_IDLE_MS / 1000}s`,
-							},
-						],
-						details: {
-							event: {
-								type: "stall_detected",
-								patternName: "idle-timeout",
-								matchedText: `${MAX_IDLE_MS / 1000}s idle`,
-							} as GuardEvent,
-							context: output.slice(-4000),
-							elapsed: Math.floor(elapsed / 1000),
-							info: "idle_timeout",
-						},
-					};
 				}
 
 				// Stall 检测（30s 无变化）
