@@ -42,6 +42,7 @@ let watchCounter = 0;
 // Map<patternName, lastTriggeredAt> for dedup
 const patternCooldowns = new Map<string, number>();
 const PATTERN_COOLDOWN_MS = 15_000; // same pattern won't re-trigger within 15s
+const LONG_COOLDOWN_MS = 300_000; // 5min, for next-step to avoid repeated execution
 
 // ---------------------------------------------------------------------------
 // Types for tool result details and render state
@@ -133,6 +134,7 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, fullMatch[0]], {
 				timeout: 10000,
 			});
+			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
 			return `auto-executed ${fullMatch[0]}`;
 		}
 		// 回退：只提取 /skill:xxx 本身
@@ -141,6 +143,7 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
 				timeout: 10000,
 			});
+			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
 			return `auto-executed ${cmdMatch[0]}`;
 		}
 	}
@@ -568,11 +571,14 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 // ---------------------------------------------------------------------------
 
 function isPatternOnCooldown(patternName: string): boolean {
-	const last = patternCooldowns.get(patternName);
-	if (!last) return false;
-	return Date.now() - last < PATTERN_COOLDOWN_MS;
+	const expireAt = patternCooldowns.get(patternName);
+	if (!expireAt) return false;
+	return Date.now() < expireAt;
 }
 
-function markPatternCooldown(patternName: string): void {
-	patternCooldowns.set(patternName, Date.now());
+function markPatternCooldown(patternName: string, durationMs?: number): void {
+	patternCooldowns.set(
+		patternName,
+		Date.now() + (durationMs ?? PATTERN_COOLDOWN_MS),
+	);
 }

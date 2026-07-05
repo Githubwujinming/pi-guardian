@@ -25,9 +25,10 @@ import { matchBuiltinPatterns } from "./patterns.js";
 
 let watchCounter = 0;
 
-// Map<patternName, lastTriggeredAt> for dedup
+// Map<patternName, expireAt> for dedup
 const patternCooldowns = new Map<string, number>();
 const PATTERN_COOLDOWN_MS = 15_000;
+const LONG_COOLDOWN_MS = 300_000; // 5分钟，用于 next-step 防止重复执行
 
 // ---------------------------------------------------------------------------
 // TypeBox schema — 参数校验（可靠，不走自然语言解析）
@@ -86,7 +87,7 @@ async function tryAutoRespond(
 	}
 
 	// next-step / rpiv-chain-forward → 提取 /skill:xxx 命令并执行
-	// 用 recent-unwrapped 后路径在同一行：**下一步:** `/skill:validate .rpiv/artifacts/plan.md`
+	// 注意：执行后加 LONG_COOLDOWN（5min），防止同一命令反复触发
 	if (matchName === "next-step" || matchName === "rpiv-chain-forward") {
 		// 先尝试提取完整命令（含路径参数）
 		const fullMatch = matchedText?.match(/\/skill:\S+\s+\S+/i);
@@ -94,6 +95,8 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, fullMatch[0]], {
 				timeout: 10000,
 			});
+			// 设置长时间冷却，防止反复执行同一命令
+			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
 			return `executed ${fullMatch[0]}`;
 		}
 		// 回退：只提取 /skill:xxx 本身
@@ -102,6 +105,7 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
 				timeout: 10000,
 			});
+			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
 			return `executed ${cmdMatch[0]}`;
 		}
 	}
@@ -123,13 +127,16 @@ async function tryAutoRespond(
 }
 
 function isPatternOnCooldown(patternName: string): boolean {
-	const last = patternCooldowns.get(patternName);
-	if (!last) return false;
-	return Date.now() - last < PATTERN_COOLDOWN_MS;
+	const expireAt = patternCooldowns.get(patternName);
+	if (!expireAt) return false;
+	return Date.now() < expireAt;
 }
 
-function markPatternCooldown(patternName: string): void {
-	patternCooldowns.set(patternName, Date.now());
+function markPatternCooldown(patternName: string, durationMs?: number): void {
+	patternCooldowns.set(
+		patternName,
+		Date.now() + (durationMs ?? PATTERN_COOLDOWN_MS),
+	);
 }
 
 // ---------------------------------------------------------------------------
