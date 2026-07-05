@@ -37,32 +37,30 @@ Explicit `--key value` parameters (for scripting / precise control):
 
 ### Step 1: Resolve Pane Reference
 
-If `$ARGUMENTS` contains `--pane`, parse it directly (see Input section above).
+#### 情况 A：$ARGUMENTS 包含 `--pane`（显式指定）
 
-Otherwise, if the user says **"继续"** or **"resume"** (with or without a pane reference):
+**直接解析，不做任何额外操作：**
 
-1. **Search session history** for the last `guard_pane` tool call (in the current
-   conversation or session branch). Extract its parameters: `pane`, `plan`,
-   `patterns`, `interval`, `timeout`.
-2. If the user specified a different pane (e.g., "继续值守右边的 pane"),
-   resolve the pane reference (see below) and use that instead.
-3. Call `guard_pane(pane=<pane>, plan=<plan>, interval=<interval>, ...)` with
-   the recovered parameters — no need to ask the user for them again.
+1. 从 `$ARGUMENTS` 中提取 `--pane <value>` 作为 pane ID
+2. 同样提取 `--plan`、`--interval`、`--patterns`、`--timeout`（如果有）
+3. **直接跳到 Step 2**，调用 `guard_pane(pane=<value>, ...)`
+4. **禁止：** 列 pane 列表、确认 pane 是否存在、问用户、查布局。**直接调用。**
 
-Otherwise, interpret `$ARGUMENTS` as natural language and resolve the target pane:
+#### 情况 B：用户说"继续"或"resume"
 
-1. **List available panes**: run `herdr list` to get all panes with their IDs,
-   aliases, workspace/tab positions, and agent statuses.
-2. **Map descriptions to pane IDs**:
-   - `左边的` / `右边的`: Use the list ordering — panes are typically ordered
-     left-to-right. The first pane is "左边的", the second is "右边的".
-   - `第N个`: The Nth pane in the `herdr list` output (1-based).
-   - `正在运行 X 的`: Filter by alias, agent status, or tab context.
-   - `别名/ID`: Direct match against pane alias or ID.
-3. **Ask the user if ambiguous**: If multiple panes match or you can't determine
-   which pane is meant, use `ask_user_question` to clarify.
+1. 从会话历史中查找上一次 `guard_pane` 工具调用的参数（pane, plan, interval 等）
+2. 如果用户指定了不同的 pane（如"继续值守右边的 pane"），用情况 C 的方法解析
+3. 直接调用 `guard_pane(pane=<pane>, plan=<plan>, ...)`——不需要问用户
 
-Once resolved, set `<pane>` to the pane ID.
+#### 情况 C：自然语言描述
+
+1. 用 `herdr list` 获取所有 pane
+2. 按以下规则匹配：
+   - `左边的` / `右边的` → pane 列表中的第 1/2 个
+   - `第N个` → 列表中的第 N 个（1-based）
+   - `正在运行 X 的` → 按别名/状态过滤
+   - `别名/ID` → 直接匹配
+3. 如果无法确定，用 `ask_user_question` 澄清。**但仅限自然语言模式。**
 
 ### Step 2: Start Guard Loop
 
