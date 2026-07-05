@@ -12,7 +12,7 @@ allowed-tools: guard, respond, herdr, ask_user_question
 
 **如果 $ARGUMENTS 为空（没指定 pane）：**
 
-用 `herdr list` 列出当前标签页的所有 pane（ID、别名、目录），让用户选择。
+用 `herdr list` 列出当前标签页的所有 pane（ID、别名、目录），然后用 `ask_user_question` 让用户选择。不要自己替用户决定。
 
 **如果 $ARGUMENTS 是 pane ID 或别名：**
 
