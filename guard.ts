@@ -106,7 +106,7 @@ async function tryAutoRespond(
 		}
 	}
 
-	// implement-done / completion-summary → 静默确认，继续值守
+	// implement-done / completion-summary / implement-phase-result → 静默确认，继续值守
 	if (
 		[
 			"implement-done",
@@ -114,6 +114,7 @@ async function tryAutoRespond(
 			"follow-up",
 			"implement-complete",
 			"implement-verdict",
+			"implement-phase-result",
 		].includes(matchName)
 	) {
 		return "acknowledged";
