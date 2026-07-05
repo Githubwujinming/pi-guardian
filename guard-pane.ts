@@ -42,7 +42,6 @@ let watchCounter = 0;
 // Map<patternName, lastTriggeredAt> for dedup
 const patternCooldowns = new Map<string, number>();
 const PATTERN_COOLDOWN_MS = 15_000; // same pattern won't re-trigger within 15s
-const LONG_COOLDOWN_MS = 300_000; // 5min, for next-step to avoid repeated execution
 
 // ---------------------------------------------------------------------------
 // Types for tool result details and render state
@@ -134,7 +133,7 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, fullMatch[0]], {
 				timeout: 10000,
 			});
-			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
+			markPatternCooldown(matchName);
 			return `auto-executed ${fullMatch[0]}`;
 		}
 		// 回退：只提取 /skill:xxx 本身
@@ -143,7 +142,7 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
 				timeout: 10000,
 			});
-			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
+			markPatternCooldown(matchName);
 			return `auto-executed ${cmdMatch[0]}`;
 		}
 	}
@@ -325,6 +324,10 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 					const hasChanged = output !== lastOutput && output.length > 0;
 
 					if (hasChanged) {
+						// 只对新追加的内容做模式匹配（避免旧内容反复触发）
+						const deltaOutput = lastOutput.length > 0 && output.startsWith(lastOutput)
+							? output.slice(lastOutput.length)
+							: output;
 						lastOutput = output;
 						stallStart = null;
 
@@ -346,7 +349,7 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 
 						// ---- Pattern matching ----
 						// Check dedup: skip patterns that triggered within COOLDOWN period
-						const match = matchBuiltinPatterns(output, userPatterns);
+						const match = matchBuiltinPatterns(deltaOutput, userPatterns);
 						if (match && !isPatternOnCooldown(match.patternName)) {
 							markPatternCooldown(match.patternName);
 
@@ -576,9 +579,6 @@ function isPatternOnCooldown(patternName: string): boolean {
 	return Date.now() < expireAt;
 }
 
-function markPatternCooldown(patternName: string, durationMs?: number): void {
-	patternCooldowns.set(
-		patternName,
-		Date.now() + (durationMs ?? PATTERN_COOLDOWN_MS),
-	);
+function markPatternCooldown(patternName: string): void {
+	patternCooldowns.set(patternName, Date.now() + PATTERN_COOLDOWN_MS);
 }

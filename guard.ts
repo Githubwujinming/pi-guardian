@@ -28,7 +28,6 @@ let watchCounter = 0;
 // Map<patternName, expireAt> for dedup
 const patternCooldowns = new Map<string, number>();
 const PATTERN_COOLDOWN_MS = 15_000;
-const LONG_COOLDOWN_MS = 300_000; // 5分钟，用于 next-step 防止重复执行
 
 // ---------------------------------------------------------------------------
 // TypeBox schema — 参数校验（可靠，不走自然语言解析）
@@ -95,8 +94,7 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, fullMatch[0]], {
 				timeout: 10000,
 			});
-			// 设置长时间冷却，防止反复执行同一命令
-			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
+			markPatternCooldown(matchName);
 			return `executed ${fullMatch[0]}`;
 		}
 		// 回退：只提取 /skill:xxx 本身
@@ -105,7 +103,7 @@ async function tryAutoRespond(
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
 				timeout: 10000,
 			});
-			markPatternCooldown(matchName, LONG_COOLDOWN_MS);
+			markPatternCooldown(matchName);
 			return `executed ${cmdMatch[0]}`;
 		}
 	}
@@ -132,11 +130,8 @@ function isPatternOnCooldown(patternName: string): boolean {
 	return Date.now() < expireAt;
 }
 
-function markPatternCooldown(patternName: string, durationMs?: number): void {
-	patternCooldowns.set(
-		patternName,
-		Date.now() + (durationMs ?? PATTERN_COOLDOWN_MS),
-	);
+function markPatternCooldown(patternName: string): void {
+	patternCooldowns.set(patternName, Date.now() + PATTERN_COOLDOWN_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -241,11 +236,15 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 				const hasChanged = output !== lastOutput && output.length > 0;
 
 				if (hasChanged) {
+					// 只对新追加的内容做模式匹配（避免旧内容反复触发）
+					const deltaOutput = lastOutput.length > 0 && output.startsWith(lastOutput)
+						? output.slice(lastOutput.length)
+						: output;
 					lastOutput = output;
 					stallStart = null;
 
-					// 模式匹配
-					const match = matchBuiltinPatterns(output, params.patterns ?? []);
+					// 模式匹配（只针对增量内容）
+					const match = matchBuiltinPatterns(deltaOutput, params.patterns ?? []);
 					if (match && !isPatternOnCooldown(match.patternName)) {
 						markPatternCooldown(match.patternName);
 
