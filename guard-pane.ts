@@ -125,7 +125,17 @@ async function tryAutoRespond(
 	}
 
 	// next-step / rpiv-chain-forward: 自动执行建议的下一步命令
+	// 优先提取完整命令（含路径参数）：/skill:validate .rpiv/artifacts/plan.md
 	if (matchName === "next-step" || matchName === "rpiv-chain-forward") {
+		// 尝试提取完整命令（含路径参数）
+		const fullMatch = matchedText?.match(/\/skill:\S+\s+\S+/i);
+		if (fullMatch) {
+			await pi.exec("herdr", ["pane", "run", paneId, fullMatch[0]], {
+				timeout: 10000,
+			});
+			return `auto-executed ${fullMatch[0]}`;
+		}
+		// 回退：只提取 /skill:xxx 本身
 		const cmdMatch = matchedText?.match(/\/skill:\S+/i);
 		if (cmdMatch) {
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
@@ -263,7 +273,7 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 					try {
 						const readResult = await pi.exec(
 							"herdr",
-							["pane", "read", params.pane, "--lines", "200"],
+							["pane", "read", params.pane, "--source", "recent-unwrapped", "--lines", "200"],
 							{
 								signal: mergedSignal,
 								timeout: Math.min(interval + 2000, 10000),

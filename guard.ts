@@ -86,7 +86,17 @@ async function tryAutoRespond(
 	}
 
 	// next-step / rpiv-chain-forward → 提取 /skill:xxx 命令并执行
+	// 用 recent-unwrapped 后路径在同一行：**下一步:** `/skill:validate .rpiv/artifacts/plan.md`
 	if (matchName === "next-step" || matchName === "rpiv-chain-forward") {
+		// 先尝试提取完整命令（含路径参数）
+		const fullMatch = matchedText?.match(/\/skill:\S+\s+\S+/i);
+		if (fullMatch) {
+			await pi.exec("herdr", ["pane", "run", paneId, fullMatch[0]], {
+				timeout: 10000,
+			});
+			return `executed ${fullMatch[0]}`;
+		}
+		// 回退：只提取 /skill:xxx 本身
 		const cmdMatch = matchedText?.match(/\/skill:\S+/i);
 		if (cmdMatch) {
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
@@ -139,7 +149,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 		parameters: guardParams,
 
 		async execute(_toolCallId, params, signal, onUpdate, _ctx) {
-			const watchId = `guard-${++watchCounter}`;
+			++watchCounter;
 			const startedAt = Date.now();
 			const interval = params.interval ?? 500;
 			const watchTimeout = params.timeout;
@@ -184,7 +194,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 				try {
 					const readResult = await pi.exec(
 						"herdr",
-						["pane", "read", params.pane, "--lines", "200"],
+						["pane", "read", params.pane, "--source", "recent-unwrapped", "--lines", "200"],
 						{
 							signal,
 							timeout: Math.min(interval + 2000, 10000),
