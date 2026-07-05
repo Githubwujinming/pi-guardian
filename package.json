@@ -34,6 +34,7 @@
     "guard-pane.ts",
     "respond.ts",
     "audit.ts",
+    "guard.ts",
     "skills/",
     "README.md",
     "LICENSE"

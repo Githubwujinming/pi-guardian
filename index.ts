@@ -1,11 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerGuardPaneTool } from "./guard-pane.js";
 import { registerRespondTool } from "./respond.js";
+import { registerGuardTool } from "./guard.js";
 import { reconstructState } from "./state.js";
 
 export default function (pi: ExtensionAPI): void {
   registerGuardPaneTool(pi);
   registerRespondTool(pi);
+  registerGuardTool(pi);
 
   const handleSessionEvent = async (_event: unknown, ctx: { sessionManager: { getBranch(): Iterable<unknown> } }) => {
     reconstructState(ctx);

@@ -3,8 +3,8 @@ name: guard
 description: >
   Monitor a herdr pane and auto-respond to questions and prompts.
   Deploy in one pane to watch another — the agent runs a continuous
-  guard loop: monitor → detect → escalate → decide → respond → repeat.
-allowed-tools: Agent, ask_user_question, Write, herdr, guard_pane, respond
+  guard loop: monitor → detect → respond → resume.
+allowed-tools: Agent, ask_user_question, Write, herdr, guard_pane, respond, guard
 ---
 
 # Guard
@@ -18,96 +18,48 @@ it to the correct pane ID automatically.
 
 `$ARGUMENTS` — pane ID 或自然语言描述。
 
-示例：`w1:p1`、`左边的 pane`、`第2个 pane`、`--pane w1:p1 --plan plan.md`
-
-参数格式（用于 Step 1 规则 A）：
-`--pane <id>` 或 `--pane <id> --plan <path> --interval <ms>`
+示例：`w1:p1`、`左边的 pane`、`第2个 pane`
 
 ## Steps
 
-### Step 1: 直接调用 guard_pane
+### Step 1: 确定 pane ID
 
-立即调用 `guard_pane(pane="$ARGUMENTS")`。
+如果 `$ARGUMENTS` 是 pane ID（`w1:pX` 或 `w1pX` 格式），直接使用。
 
-**不要：**
+如果是自然语言，用 `herdr list` 查找匹配的 pane。
 
-- 不要列 pane 列表
-- 不要问用户选哪个
-- 不要查布局
-- 不要输出任何文字
-- 不要确认 pane 是否存在
-- 不要解释你在做什么
+如果无法确定，用 `ask_user_question` 澄清。
 
-**$ARGUMENTS 就是 pane ID，直接用它。**
+### Step 2: 启动值守
 
-如果 $ARGUMENTS 以 `--pane` 开头，取 `--pane` 后面的单词作为 pane ID。
-如果 $ARGUMENTS 包含"继续"或"resume"，从会话历史恢复上次的参数。
+调用 `guard(pane=<paneId>)`。
 
-**无论如何，最终结果必须是一个 guard_pane 调用。**
+工具会自动运行监控循环：
 
-### Step 2: Start Guard Loop
+- `next-step` / `rpiv-chain-forward` → 自动执行 `/skill:xxx` 命令
+- `confirm-prompt` / `press-enter` / `yes-no` → 自动发 Enter
+- `implement-done` / `follow-up` / completion-summary → 静默确认，继续值守
+- 需要 LLM 决策的事件（问题、stall）→ 返回给 agent
 
-Call `guard_pane(pane=<pane>, plan=<plan>, interval=<interval>, patterns=<patterns>, timeout=<timeout>)`.
+### Step 3: 处理 LLM 事件
 
-This tool blocks and monitors the target pane. It will:
+当 `guard` 返回事件时：
 
-- **Auto-respond** to simple confirmation prompts (Enter)
-- **Return** detected events to you when LLM decision is needed
-- **Stall-detect** when the pane has no output for 30s
-- **Subagent-detect** and extend stall threshold when agent delegates to subagents
+1. **分析事件**：查看 `details.event` 和 `details.context`
+2. **自动响应**（不要问用户）：
+   - 问问题 → `respond(pane=<pane>, optionIndex=N)` 或 `respond(pane=<pane>, text="...")`
+   - stall → 检查上下文，判断 agent 是否需要输入
+3. **立即恢复值守**：再次调用 `guard(pane=<pane>)`
 
-### Step 3: Analyze and Auto-Respond (IMPERATIVE — DO NOT ASK)
+### 绝对禁止
 
-**黄金法则：值守 agent 必须自动响应。永远不要问用户"做什么"。**
-
-当 `guard_pane` 返回事件时，按以下规则自动处理：
-
-| 事件类型 | 你的动作 |
-| --- | --- |
-| `next-step` / `rpiv-chain-forward` | 从 `details.context` 中提取 `/skill:xxx` 命令，调用 `respond(pane=<pane>, text="<command>")` 自动执行下一步 |
-| `question-end` / `chinese-question` / `choice-prompt` | 工作 agent 在问问题。从 `details.context` 中读取选项，选择最合适的，调用 `respond(pane=<pane>, optionIndex=N)` 回答。如需文本输入则用 `respond(pane=<pane>, text="...")` |
-| `stall_detected` | 30s 无输出变化。读取 `details.context`，判断 agent 是否在等待输入。如果是则分析并响应；如果只是在思考则继续值守 |
-| `follow-up` / `implement-done` / `implement-complete` / `completion-summary` | 例行摘要——无需操作。继续值守 |
-
-**绝对禁止：**
-
-- ❌ 问"需要我做什么"或"是否需要我..."
-- ❌ 列出选项让用户选择（"1.继续值守 2.停止值守"）
-- ❌ 总结情况后等待用户命令
-- ❌ 任何形式的请示
-
-**必须的行为是：** 检测 → 响应 → 恢复值守。不问问题。
-
-### Step 4: Resume Monitoring (AUTOMATIC)
-
-调用 `respond()` 后，**立即**再次调用 `guard_pane(…)` 恢复值守。
-
-形成自主循环：监控 → 检测 → 响应 → 恢复 → 监控...
-
-**停止值守的条件（仅限）：**
-
-- 用户明确要求停止
-- 被监控的 pane 已关闭或不可达
-- `stall_detected` 且 agent 确实已空转（检查上下文后确认）
-
-**不要在单个任务完成后停止。不要问用户任何问题。**
-
-### Step 5: Stopping
-
-To stop, simply stop calling `guard_pane`. The loop ends when the tool
-returns a `stopped: true` event (timeout, pane unreachable, or abort).
-
-If the user requested an explicit stop, acknowledge it and explain that
-no further monitoring is active.
+- ❌ 问用户"需要我做什么"
+- ❌ 列出选项让用户选择
+- ❌ 总结情况后等待命令
 
 ## Important Notes
 
-- **Auto-respond (tool level)**: confirm-prompt/press-enter/yes-no → Enter; next-step/rpiv-chain-forward → auto-executes the suggested `/skill:xxx` command in the worker pane. These are handled without involving you.
-- **Agent auto-continue**: For events that reach you, automatically proceed with the next step (call `respond`). Do NOT ask "what should I do" unless truly blocked.
-- **Subagent awareness**: When the monitored agent dispatches a subagent,
-  stall detection extends to 5 minutes automatically.
-- **Event dedup**: The same pattern won't retrigger within 15 seconds.
-- **Pane disappearance**: After 5 consecutive read failures, the watch
-  stops and returns a stopped event.
-- **Never modify files** in the monitored pane — only send responses.
-- **Always resume monitoring** after responding unless the task is done.
+- **guard 工具**自动处理 next-step 执行、Enter 确认、例行动作
+- **只返回**需要 LLM 判断的事件给 agent
+- **Event dedup**: 相同模式 15s 内不会重复触发
+- **Pane disappearance**: 连续 5 次读取失败后自动停止
