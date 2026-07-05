@@ -75,37 +75,41 @@ This tool blocks and monitors the target pane. It will:
 - **Stall-detect** when the pane has no output for 30s
 - **Subagent-detect** and extend stall threshold when agent delegates to subagents
 
-### Step 3: Analyze and Respond
+### Step 3: Analyze and Auto-Respond (IMPERATIVE — DO NOT ASK)
 
-When `guard_pane` returns an event:
+**黄金法则：值守 agent 必须自动响应。永远不要问用户"做什么"。**
 
-1. **Analyze `details.event`** — see the detected pattern and `details.context` for recent output
-2. **Consult the plan** (if provided) — read `details.planPath` to determine next action
-3. **Auto-continue the workflow**: Most events should be handled automatically without asking:
-   - **`next-step` / `rpiv-chain-forward`**: Extract the `/skill:xxx` command from the event context and call `respond(pane=<pane>, text="<command>")` to auto-execute the next step
-   - **`implement-done` / `completion-summary`**: The task completed normally. Resume monitoring for the next event — no action needed
-   - **`follow-up`**: This is a routine summary, resume monitoring
-   - **`question-end` / `chinese-question` / `choice-prompt`**: The monitored agent is asking a question. Analyze the options and call `respond(pane=<pane>, optionIndex=N)` or `respond(pane=<pane>, text="...")` to answer
-   - **`confirm-prompt` / `yes-no` / `press-enter`**: These are auto-handled by guard_pane, you won't see them here
-4. **Only ask the user when**:
-   - The correct action is truly ambiguous (multiple valid interpretations)
-   - The workflow has reached a natural stopping point (all phases done, no more steps)
-   - You need user input for an important decision
+当 `guard_pane` 返回事件时，按以下规则自动处理：
 
-### Step 4: Resume Monitoring
+| 事件类型 | 你的动作 |
+| --- | --- |
+| `next-step` / `rpiv-chain-forward` | 从 `details.context` 中提取 `/skill:xxx` 命令，调用 `respond(pane=<pane>, text="<command>")` 自动执行下一步 |
+| `question-end` / `chinese-question` / `choice-prompt` | 工作 agent 在问问题。从 `details.context` 中读取选项，选择最合适的，调用 `respond(pane=<pane>, optionIndex=N)` 回答。如需文本输入则用 `respond(pane=<pane>, text="...")` |
+| `stall_detected` | 30s 无输出变化。读取 `details.context`，判断 agent 是否在等待输入。如果是则分析并响应；如果只是在思考则继续值守 |
+| `follow-up` / `implement-done` / `implement-complete` / `completion-summary` | 例行摘要——无需操作。继续值守 |
 
-After responding, immediately call `guard_pane(…)` again with the same parameters to continue.
+**绝对禁止：**
 
-Repeat Steps 3-4 automatically. Do NOT ask the user "what to do next" — keep the workflow moving.
+- ❌ 问"需要我做什么"或"是否需要我..."
+- ❌ 列出选项让用户选择（"1.继续值守 2.停止值守"）
+- ❌ 总结情况后等待用户命令
+- ❌ 任何形式的请示
 
-Stop only when:
+**必须的行为是：** 检测 → 响应 → 恢复值守。不问问题。
 
-- The user explicitly tells you to stop
-- The monitored agent has no more steps and is idle for an extended period (stall detected)
-- The monitored pane is closed or unreachable
+### Step 4: Resume Monitoring (AUTOMATIC)
 
-Do NOT stop just because one task completed — the agent may start another task at any time.
-Do NOT ask "what to do next" — just resume monitoring.
+调用 `respond()` 后，**立即**再次调用 `guard_pane(…)` 恢复值守。
+
+形成自主循环：监控 → 检测 → 响应 → 恢复 → 监控...
+
+**停止值守的条件（仅限）：**
+
+- 用户明确要求停止
+- 被监控的 pane 已关闭或不可达
+- `stall_detected` 且 agent 确实已空转（检查上下文后确认）
+
+**不要在单个任务完成后停止。不要问用户任何问题。**
 
 ### Step 5: Stopping
 
