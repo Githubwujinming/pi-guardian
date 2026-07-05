@@ -26,7 +26,8 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
   // **Next step:** `/skill:...` — implement/blueprint/plan 等技能的下一步建议
   {
     name: "next-step",
-    regex: /\*\*Next step:\*\*\s*\/skill:\S+/i,
+    // 匹配 **Next step:** 后可能跟反引号或引号包裹的 /skill:xxx 路径
+    regex: /\*\*Next step:\*\*\s*[`'"\s]*\/skill:\S+/i,
   },
   // 💬 Follow-up: — 技能结束时的后续提示
   {
