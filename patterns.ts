@@ -33,7 +33,8 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
 		//   **下一步：** `/skill:xxx     （中+全角冒号+加粗）
 		//   下一步： /skill:xxx        （中+全角冒号+无加粗）
 		//   Next step: /skill:xxx      （英+无加粗）
-		regex: /(?:\*\*)?(?:Next step|下一步)[：:]?(?:\*\*)?\s*[`'"\s]*\/skill:\S+/i,
+		regex:
+			/(?:\*\*)?(?:Next step|下一步)[：:]?(?:\*\*)?\s*[`'"\s]*\/skill:\S+/i,
 	},
 	// 💬 Follow-up: — 技能结束时的后续提示
 	{

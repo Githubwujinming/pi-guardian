@@ -23,7 +23,6 @@ import { matchBuiltinPatterns } from "./patterns.js";
 // Module-level state
 // ---------------------------------------------------------------------------
 
-let watchCounter = 0;
 
 // Map<patternName, expireAt> for dedup
 const patternCooldowns = new Map<string, number>();
@@ -151,7 +150,6 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 		parameters: guardParams,
 
 		async execute(_toolCallId, params, signal, onUpdate, _ctx) {
-			++watchCounter;
 			const startedAt = Date.now();
 			const interval = params.interval ?? 500;
 			const watchTimeout = params.timeout;
@@ -237,14 +235,18 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 
 				if (hasChanged) {
 					// 只对新追加的内容做模式匹配（避免旧内容反复触发）
-					const deltaOutput = lastOutput.length > 0 && output.startsWith(lastOutput)
-						? output.slice(lastOutput.length)
-						: output;
+					const deltaOutput =
+						lastOutput.length > 0 && output.startsWith(lastOutput)
+							? output.slice(lastOutput.length)
+							: output;
 					lastOutput = output;
 					stallStart = null;
 
 					// 模式匹配（只针对增量内容）
-					const match = matchBuiltinPatterns(deltaOutput, params.patterns ?? []);
+					const match = matchBuiltinPatterns(
+						deltaOutput,
+						params.patterns ?? [],
+					);
 					if (match && !isPatternOnCooldown(match.patternName)) {
 						markPatternCooldown(match.patternName);
 
@@ -315,7 +317,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 									patternName: "stall-fallback",
 									matchedText: "30s no output",
 								} as GuardEvent,
-								context: output.slice(-2000),
+								context: output.slice(-4000),
 								elapsed: Math.floor(elapsed / 1000),
 								info: "stall",
 							},

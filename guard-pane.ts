@@ -325,9 +325,10 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 
 					if (hasChanged) {
 						// 只对新追加的内容做模式匹配（避免旧内容反复触发）
-						const deltaOutput = lastOutput.length > 0 && output.startsWith(lastOutput)
-							? output.slice(lastOutput.length)
-							: output;
+						const deltaOutput =
+							lastOutput.length > 0 && output.startsWith(lastOutput)
+								? output.slice(lastOutput.length)
+								: output;
 						lastOutput = output;
 						stallStart = null;
 

@@ -43,13 +43,34 @@ it to the correct pane ID automatically.
 
 ### Step 3: 处理 LLM 事件
 
-当 `guard` 返回事件时：
+当 `guard` 返回事件时，`details` 包含以下字段：
 
-1. **分析事件**：查看 `details.event` 和 `details.context`
-2. **自动响应**（不要问用户）：
-   - 问问题 → `respond(pane=<pane>, optionIndex=N)` 或 `respond(pane=<pane>, text="...")`
-   - stall → 检查上下文，判断 agent 是否需要输入
-3. **立即恢复值守**：再次调用 `guard(pane=<pane>)`
+- `event` — 事件类型（pattern_match / stall_detected）
+- `context` — 最近 4000 字符的 pane 输出（含完整的问答选项）
+- `elapsed` — 值守已运行秒数
+
+**必须的响应逻辑（不要问用户）：**
+
+| `details.event.patternName` | 含义 | 你的动作 |
+| --- | --- | --- |
+| `generic-question` / `question-end` / `chinese-question` | worker 在问问题 | 从 `details.context` 中读取选项，调用 `respond(pane=..., optionIndex=N)` 选择最合适的选项。如果选项中有`(推荐)`标记的优先选择 |
+| `choice-prompt` / `prompt-input` | worker 在等待输入 | 分析上下文，调用 `respond(pane=..., text=...)` 提供合适的输入 |
+| `stall-fallback` | 30s 无新输出 | 检查 `details.context` 是否包含未回答的问题。如果有则回答；如果只是等待任务完成则恢复值守 |
+| `implement-verdict` / `implement-phase-result` 等 | 例行状态 | 无需操作，恢复值守 |
+
+`details.context` 内容示例（worker 在问问题）：
+
+```
+要验证哪个计划？
+❯ 1. test-guard-2phase.md (推荐)
+  2. test-guard-simple.md
+```
+
+→ 应调用 `respond(pane=..., optionIndex=0)` 选择第一个选项
+
+### Step 4: 立即恢复值守
+
+任何时候处理完事件后，立即调用 `guard(pane=<pane>)` 继续监控。不要等用户确认。
 
 ### 绝对禁止
 
