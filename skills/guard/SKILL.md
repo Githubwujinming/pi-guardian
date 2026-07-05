@@ -25,44 +25,25 @@ it to the correct pane ID automatically.
 
 ## Steps
 
-### Step 1: Parse $ARGUMENTS
+### Step 1: 直接调用 guard_pane
 
-**一次检查，先命中的规则直接执行，不再检查后面的规则。**
+立即调用 `guard_pane(pane="$ARGUMENTS")`。
 
----
+**不要：**
 
-**规则 1：$ARGUMENTS 是 pane ID（如 `w1:p1`）或包含 `--pane`**
+- 不要列 pane 列表
+- 不要问用户选哪个
+- 不要查布局
+- 不要输出任何文字
+- 不要确认 pane 是否存在
+- 不要解释你在做什么
 
-检查方法：
+**$ARGUMENTS 就是 pane ID，直接用它。**
 
-- 如果 `$ARGUMENTS` 整个就是一个 pane ID（匹配 `w1:p` 或 `w1p` 模式）→ 直接作为 pane
-- 如果 `$ARGUMENTS` 包含 `--pane` → 提取 `--pane` 后面的单词作为 pane
+如果 $ARGUMENTS 以 `--pane` 开头，取 `--pane` 后面的单词作为 pane ID。
+如果 $ARGUMENTS 包含"继续"或"resume"，从会话历史恢复上次的参数。
 
-执行：
-
-```
-1. 提取 pane ID
-2. 调用 guard_pane(pane=提取到的paneId)
-3. 直接跳到 Step 2，禁止任何额外操作
-```
-
-**禁止：** 列 pane 列表、用 herdr list、问用户、查布局、输出使用说明。
-**即使 paneId 不存在也直接传——tool 自己会报错。**
-
----
-
-**规则 2：用户说"继续"或"resume"（恢复模式）**
-
-从会话历史找上次 `guard_pane` 调用的参数，直接调用。
-如果用户同时指定了不同 pane（如"继续值守右边的"），先按规则 3 解析。
-
----
-
-**规则 3：自然语言描述**
-
-1. 用 herdr list 获取所有 pane
-2. 匹配描述：左边的/右边的/第N个/别名/用途
-3. 无法确定才问用户
+**无论如何，最终结果必须是一个 guard_pane 调用。**
 
 ### Step 2: Start Guard Loop
 
