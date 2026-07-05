@@ -113,6 +113,7 @@ async function tryAutoRespond(
 	pi: ExtensionAPI,
 	paneId: string,
 	matchName: string,
+	matchedText?: string,
 ): Promise<string | undefined> {
 	const safeAuto = new Set(["confirm-prompt", "press-enter", "yes-no"]);
 
@@ -121,6 +122,23 @@ async function tryAutoRespond(
 			timeout: 5000,
 		});
 		return "sent Enter (auto-confirm)";
+	}
+
+	// next-step / rpiv-chain-forward: 自动执行建议的下一步命令
+	if (matchName === "next-step" || matchName === "rpiv-chain-forward") {
+		const cmdMatch = matchedText?.match(/\/skill:\S+/i);
+		if (cmdMatch) {
+			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
+				timeout: 10000,
+			});
+			return `auto-executed ${cmdMatch[0]}`;
+		}
+	}
+
+	// implement-done / completion-summary: 工作流自然结束，继续值守等待新事件
+	// 不返回字符串表示 autoRespond 静默处理，继续监控
+	if (matchName === "implement-done" || matchName === "completion-summary") {
+		return "acknowledged (no action needed)";
 	}
 
 	// Everything else → escalate to agent for LLM decision
@@ -317,6 +335,7 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 									pi,
 									params.pane,
 									match.patternName,
+									match.matchedText,
 								).catch(() => undefined);
 								if (responseMsg) {
 									if (onUpdate) {

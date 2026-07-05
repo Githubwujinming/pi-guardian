@@ -19,6 +19,7 @@ it to the correct pane ID automatically.
 `$ARGUMENTS` — natural language description or `--key value` parameters.
 
 When using natural language, describe which pane to monitor:
+
 - **按位置**: `左边的 pane`, `右边的 pane`, `上面的`, `下面的`
 - **按顺序**: `第1个 pane`, `第2个 pane`, `最后一个 pane`
 - **按别名**: `监控 w1:p1`, `监控 server-pane`
@@ -68,6 +69,7 @@ Once resolved, set `<pane>` to the pane ID.
 Call `guard_pane(pane=<pane>, plan=<plan>, interval=<interval>, patterns=<patterns>, timeout=<timeout>)`.
 
 This tool blocks and monitors the target pane. It will:
+
 - **Auto-respond** to simple confirmation prompts (Enter)
 - **Return** detected events to you when LLM decision is needed
 - **Stall-detect** when the pane has no output for 30s
@@ -79,19 +81,28 @@ When `guard_pane` returns an event:
 
 1. **Analyze `details.event`** — see the detected pattern and `details.context` for recent output
 2. **Consult the plan** (if provided) — read `details.planPath` to determine next action
-3. **Decide and use `respond`**:
-   - Single option: `respond(pane=<pane>, optionIndex=N)`
-   - Multiple options: `respond(pane=<pane>, options=[0, 2])`
-   - Text input: `respond(pane=<pane>, text="your input")`
+3. **Auto-continue the workflow**: Most events should be handled automatically without asking:
+   - **`next-step` / `rpiv-chain-forward`**: Extract the `/skill:xxx` command from the event context and call `respond(pane=<pane>, text="<command>")` to auto-execute the next step
+   - **`implement-done` / `completion-summary`**: The task completed normally. Resume monitoring for the next event — no action needed
+   - **`follow-up`**: This is a routine summary, resume monitoring
+   - **`question-end` / `chinese-question` / `choice-prompt`**: The monitored agent is asking a question. Analyze the options and call `respond(pane=<pane>, optionIndex=N)` or `respond(pane=<pane>, text="...")` to answer
+   - **`confirm-prompt` / `yes-no` / `press-enter`**: These are auto-handled by guard_pane, you won't see them here
+4. **Only ask the user when**:
+   - The correct action is truly ambiguous (multiple valid interpretations)
+   - The workflow has reached a natural stopping point (all phases done, no more steps)
+   - You need user input for an important decision
 
 ### Step 4: Resume Monitoring
 
-After responding, call `guard_pane(…)` again with the same parameters to continue.
+After responding, immediately call `guard_pane(…)` again with the same parameters to continue.
 
-Repeat Steps 3-4. Stop when:
-- The user tells you to stop
-- The monitored pane's task is complete
-- You determine no further action is needed
+Repeat Steps 3-4 automatically. Do NOT ask the user "what to do next" — keep the workflow moving.
+
+Stop only when:
+
+- The user explicitly tells you to stop
+- The monitored pane's task is complete and no more steps are expected
+- You determine no further action is needed (and confirm with the user)
 
 ### Step 5: Stopping
 
@@ -103,8 +114,8 @@ no further monitoring is active.
 
 ## Important Notes
 
-- **Minimal auto-respond**: Only Enter for confirmations; everything else
-  needs your LLM judgment. This avoids infinite response loops.
+- **Auto-respond (tool level)**: confirm-prompt/press-enter/yes-no → Enter; next-step/rpiv-chain-forward → auto-executes the suggested `/skill:xxx` command in the worker pane. These are handled without involving you.
+- **Agent auto-continue**: For events that reach you, automatically proceed with the next step (call `respond`). Do NOT ask "what should I do" unless truly blocked.
 - **Subagent awareness**: When the monitored agent dispatches a subagent,
   stall detection extends to 5 minutes automatically.
 - **Event dedup**: The same pattern won't retrigger within 15 seconds.
