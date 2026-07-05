@@ -16,22 +16,12 @@ it to the correct pane ID automatically.
 
 ## Input
 
-`$ARGUMENTS` — natural language description or `--key value` parameters.
+`$ARGUMENTS` — pane ID 或自然语言描述。
 
-When using natural language, describe which pane to monitor:
+示例：`w1:p1`、`左边的 pane`、`第2个 pane`、`--pane w1:p1 --plan plan.md`
 
-- **按位置**: `左边的 pane`, `右边的 pane`, `上面的`, `下面的`
-- **按顺序**: `第1个 pane`, `第2个 pane`, `最后一个 pane`
-- **按别名**: `监控 w1:p1`, `监控 server-pane`
-- **按用途**: `监控正在运行 implement 的 pane`, `监控右边的那个 pane`
-
-Explicit `--key value` parameters (for scripting / precise control):
-
-- `--pane <id>` (required) — Pane ID or alias to monitor
-- `--plan <path>` (optional) — Plan document path for context (the agent references it)
-- `--interval <ms>` (optional) — Polling interval in ms (default 500)
-- `--patterns <regex>` (optional) — Additional regex patterns (comma-separated)
-- `--timeout <ms>` (optional) — Stop monitoring after this many ms
+参数格式（用于 Step 1 规则 A）：
+`--pane <id>` 或 `--pane <id> --plan <path> --interval <ms>`
 
 ## Steps
 
