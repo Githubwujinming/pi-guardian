@@ -27,50 +27,42 @@ it to the correct pane ID automatically.
 
 ### Step 1: Parse $ARGUMENTS
 
-**规则：先检查 `$ARGUMENTS` 是否包含 `--pane`，如果是，立即跳到规则 A，不许走规则 B/C。**
+**一次检查，先命中的规则直接执行，不再检查后面的规则。**
 
 ---
 
-**规则 A：`$ARGUMENTS` 包含 `--pane`（显式参数模式）**
+**规则 1：$ARGUMENTS 是 pane ID（如 `w1:p1`）或包含 `--pane`**
 
-执行步骤：
+检查方法：
+
+- 如果 `$ARGUMENTS` 整个就是一个 pane ID（匹配 `w1:p` 或 `w1p` 模式）→ 直接作为 pane
+- 如果 `$ARGUMENTS` 包含 `--pane` → 提取 `--pane` 后面的单词作为 pane
+
+执行：
 
 ```
-1. 从 $ARGUMENTS 中提取 --pane 后面的单词 → paneId
-2. 提取 --plan、--interval、--patterns、--timeout（如果有）
-3. 立即调用 guard_pane(pane=paneId, ...)
-4. 完成 Step 1。不要输出任何文字，不要列 pane 列表，不要确认。
+1. 提取 pane ID
+2. 调用 guard_pane(pane=提取到的paneId)
+3. 直接跳到 Step 2，禁止任何额外操作
 ```
 
-**禁止行为（规则 A 下）：**
-
-- 禁止列出所有 pane 让用户选择
-- 禁止输出"你想监控哪个 pane？"
-- 禁止用 herdr list 查布局
-- 禁止问用户任何问题
-- 禁止输出使用说明
-
-**即使 paneId 不存在或错误，也直接传给 guard_pane——tool 自己会报错。**
+**禁止：** 列 pane 列表、用 herdr list、问用户、查布局、输出使用说明。
+**即使 paneId 不存在也直接传——tool 自己会报错。**
 
 ---
 
-**规则 B：用户说"继续"或"resume"（恢复模式）**
+**规则 2：用户说"继续"或"resume"（恢复模式）**
 
-```
-1. 从会话历史找上次 guard_pane 调用的参数
-2. 如果用户提到了不同 pane（如"继续值守右边的"），转规则 C 解析
-3. 直接调用 guard_pane(pane=..., plan=...)
-```
+从会话历史找上次 `guard_pane` 调用的参数，直接调用。
+如果用户同时指定了不同 pane（如"继续值守右边的"），先按规则 3 解析。
 
 ---
 
-**规则 C：自然语言描述（自然语言模式）**
+**规则 3：自然语言描述**
 
-```
 1. 用 herdr list 获取所有 pane
-2. 按描述匹配：左边的/右边的/第N个/别名
+2. 匹配描述：左边的/右边的/第N个/别名/用途
 3. 无法确定才问用户
-```
 
 ### Step 2: Start Guard Loop
 
