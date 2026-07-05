@@ -10,7 +10,18 @@ allowed-tools: guard, respond, herdr, ask_user_question
 
 ### 1. Start monitoring
 
-`$ARGUMENTS` is the pane ID. Call `guard(pane="$ARGUMENTS")` immediately.
+`$ARGUMENTS` 就是要监控的目标。按以下顺序解析：
+
+**A. 如果 $ARGUMENTS 是 pane ID（w1:pX 格式）**
+
+直接调用 `guard(pane="$ARGUMENTS")`，不要做其他任何事情。
+
+**B. 如果是自然语言描述（如"左边的 pane"、"第2个 pane"、"正在运行 implement 的 pane"）**
+
+1. 用 `herdr list` 获取所有 pane
+2. 按描述匹配：`左边的`=第一个、`右边的`=第二个、`第N个`=第N个、`别名`=直接匹配
+3. 匹配到目标后，调用 `guard(pane=<paneId>)`
+4. 如果无法确定，用 pane ID 重试提示用户
 
 ### 2. Handle events
 
