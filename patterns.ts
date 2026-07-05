@@ -103,25 +103,32 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
 	},
 
 	// ===== 确认模式 =====
-	{
-		name: "confirm-prompt",
-		regex: /(Confirm|Continue|Proceed|Abort|Retry).*[?]?/i,
-	},
+	// 注意顺序：更具体的模式（yes-no、press-enter）放在通用 confirm-prompt 前面
 	{
 		name: "yes-no",
-		regex: /[（(]?[Yy]es\/[Nn]o[)）]?|\(Y\/N\)|\(y\/n\)|\[Y\/N\]|\[y\/n\]/i,
+		// (Y/N) (y/n) [Y/N] yes/no 等——明确的是非选择
+		regex:
+			/[（(]?[Yy]es\/[Nn]o[)）]?|\(Y\/N\)|\(y\/n\)|\[Y\/N\]|\[y\/n\]/i,
 	},
 	{
 		name: "press-enter",
+		// Press Enter / 按回车——明确的按键提示
 		regex:
 			/[Pp]ress\s+(Enter|any\s+key)\s+to\s+(continue|proceed|confirm)|按.*回车|按下.*Enter/i,
+	},
+	{
+		name: "confirm-prompt",
+		// 通用确认——放在 yes-no 和 press-enter 后面，避免误匹配
+		// 注意：去掉 .* 避免过度匹配，改用 \s* 和可选问号
+		regex: /(Confirm|Continue|Proceed|Abort|Retry)\s*[?？]?/i,
 	},
 
 	// ===== subagent 调度 =====
 	{
 		name: "subagent-start",
+		// 注意：\"Background agent started\" 中末尾没有 \"background\"，所以去掉 .*background
 		regex:
-			/(Background|New)\s+agent\s+(started|created|dispatched|launched).*background/i,
+			/(Background|New)\s+agent\s+(started|created|dispatched|launched)/i,
 	},
 	{
 		name: "subagent-complete",
