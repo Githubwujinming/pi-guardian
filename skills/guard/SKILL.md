@@ -10,18 +10,13 @@ allowed-tools: guard, respond, herdr, ask_user_question
 
 ### 1. Start monitoring
 
-**推荐直接传 pane ID（最可靠）：**
+**如果 $ARGUMENTS 为空（没指定 pane）：**
 
-`/skill:guard w1:p1` → 立即调用 `guard(pane="w1:p1")`
+用 `herdr list` 列出当前标签页的所有 pane（ID、别名、目录），让用户选择。
 
-**也支持自然语言（尽量使用 ID）：**
+**如果 $ARGUMENTS 是 pane ID 或别名：**
 
-如果描述像 "右边的 pane"、"第2个 pane"：
-
-1. 用 `herdr list` 列出当前标签页的所有 pane
-2. 按描述尽量匹配（注：列表顺序可能不反映视觉布局）
-3. 匹配到就调用 `guard(pane=<id>)`
-4. 匹配不到或不确定 → 提示用 pane ID 重试
+直接调用 `guard(pane="$ARGUMENTS")`，不要列列表、不要确认、不要解释。
 
 ### 2. Handle events
 
