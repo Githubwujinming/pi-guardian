@@ -1,26 +1,44 @@
 # @githubwujinming/pi-guardian
 
-Pi extension for monitoring herdr panes — auto-responds to
-`ask_user_question` and natural-language prompts during development
-workflows.
+Pi extension + skill for monitoring herdr panes — watches a worker pane,
+auto-responds to questions, and autonomously continues multi-step workflows.
 
 ## Architecture
 
 ```
-┌──────────────────┐     ┌──────────────────┐
-│   Guard Pane     │     │   Working Pane   │
-│  (pi instance)   │     │  (pi instance)   │
-│                  │     │                  │
-│  guard_pane ─────┼────>│  executes a      │
-│  polls output    │     │  workflow        │
-│  detects events  │<────┼── asks questions │
-│                  │     │                  │
-│  respond ────────┼────>│  receives keys   │
-│  sends response  │     │  or text input   │
-└──────────────────┘     └──────────────────┘
-        │                        │
-        └──── both in same herdr workspace ────┘
+┌────────────────────┐     ┌────────────────────┐
+│   Guard Pane       │     │   Working Pane     │
+│  (pi instance)     │     │  (pi instance)     │
+│                    │     │                    │
+│  guard(pane=...) ──┼────>│  executes workflow │
+│  polls output      │     │  asks questions    │
+│  detects events    │<────┼── outputs progress │
+│  auto-responds     │     │                    │
+│  calls respond() ──┼────>│  receives response │
+└────────────────────┘     └────────────────────┘
 ```
+
+## How it works
+
+1. User calls `guard(pane="w1:pN")` or `/skill:guard w1:pN`
+2. Guard tool polls the worker pane output every 500ms
+3. **Pattern detection**: Matches worker output against built-in regex patterns
+4. **Auto-respond**: Handles known patterns automatically:
+   - `next-step` → extracts `/skill:xxx` command and executes it in the worker
+   - `confirm-prompt` / `press-enter` / `yes-no` → sends Enter
+   - Routine events → silently acknowledges, continues monitoring
+5. **LLM escalation**: For questions and stalls, returns event + 4K context to agent
+6. **Agent decides**: Analyzes context, calls `respond()`, resumes `guard()`
+
+### Key design decisions
+
+| Decision | Rationale |
+| ---------- | ----------- |
+| **Delta output matching** | Only new content is matched, preventing old patterns from re-triggering |
+| **TypeBox parameters** | `guard` tool uses TypeBox schema, no natural language parsing ambiguity |
+| **Minimal skill** | `/skill:guard` just calls `guard(pane=...)` directly, no pane selection flow |
+| **Agent in the loop** | Non-trivial decisions (questions, stalls) always return to agent with full context |
+| **No hardcoded limits** | No max execution count or idle timeout — suitable for multi-day workflows |
 
 ## Installation
 
@@ -41,84 +59,103 @@ npm install
 pi install .
 ```
 
-Requires `@ogulcancelik/pi-herdr` (peer dependency, auto-installed).
+Requires `@ogulcancelik/pi-herdr` (peer dependency).
 
 ## Usage
 
-### Start guarding a pane
+### Start guarding
 
 ```bash
-/skill:guard --pane w1:p1 --plan .rpiv/artifacts/plans/my-plan.md
+# Via skill (recommended):
+/skill:guard w1:p1
+
+# Or directly via tool:
+guard(pane="w1:p1")
 ```
 
-The guardian agent will:
+The guard will:
 
-1. Call `guard_pane` to start monitoring
-2. Auto-respond to simple confirmation prompts (Enter)
-3. Escalate detected events to you for LLM-based decision
-4. Wait for you to call `respond` and then resume monitoring
+1. Monitor the worker pane continuously
+2. Auto-execute next-step suggestions (`/skill:validate`, `/skill:commit`, etc.)
+3. Auto-confirm prompts (Enter for Y/N, confirmations)
+4. Escalate questions to you for LLM-based decision
+5. Resume monitoring automatically after each event
 
-### Respond to a detected event
+### Respond to a question
 
-When `guard_pane` returns an event, use `respond`:
-
-```
-respond(pane="w1:p1", optionIndex=2)     # select option 2
-respond(pane="w1:p1", text="开始 Phase 2") # send text
-respond(pane="w1:p1", options=[0, 3])     # multi-select: toggle 0 and 3
-```
-
-### Manual stop
-
-Simply stop calling `guard_pane` in the loop, or set a `timeout`:
+When `guard` returns a question event, use `respond`:
 
 ```
-/skill:guard --pane w1:p1 --timeout 300000
+respond(pane="w1:p1", optionIndex=0)     # select first option
+respond(pane="w1:p1", text="你的输入")    # send text
+respond(pane="w1:p1", options=[0, 2])    # multi-select
+```
+
+Then call `guard(pane="w1:p1")` again to resume.
+
+### Stop
+
+```bash
+# Set a timeout:
+guard(pane="w1:p1", timeout=3600000)    # auto-stop after 1 hour
+
+# Or simply stop calling guard() — the loop ends naturally.
 ```
 
 ## Tools
 
-### `guard_pane`
+### `guard` (primary)
 
-Long-running monitor for a herdr pane. Three detection strategies:
+Long-running monitor with auto-respond. Parameters:
 
-| Strategy | Description | Threshold |
-| --- | --- | --- |
-| Pattern matching | Regex patterns against pane output | Instant |
-| State change | Pane revision / agent_status changes | Per poll |
-| Stall detection | No output change for N seconds | 30s (normal) / 5min (subagent) |
+| Parameter | Type | Default | Description |
+| ----------- | ------ | --------- | ------------- |
+| `pane` | string | required | Pane ID to monitor |
+| `interval` | number | 500 | Polling interval in ms |
+| `timeout` | number | — | Auto-stop after N ms |
+| `patterns` | string[] | — | Custom regex patterns |
+| `plan` | string | — | Plan path for context |
 
-Auto-respond: only for deterministic confirmations (Enter).
-All other events escalate to the calling agent for LLM decision.
+Detection strategies:
+
+| Strategy | Threshold | Description |
+|----------|-----------|-------------|
+| Pattern matching (delta) | Instant | Regex patterns against new output only |
+| Stall detection | 30s | No output change → check for unanswered questions |
 
 ### `respond`
 
 Send response to a monitored pane:
 
 | Mode | Parameter | Use case |
-| --- | --- | --- |
-| Single-select | `optionIndex` | `ask_user_question` option |
-| Multi-select | `options[]` | Toggle checkboxes, then Next |
-| Text input | `text` | "Type something." or commands |
+| ------ | ----------- | ---------- |
+| Single-select | `optionIndex` | Pick from numbered options |
+| Multi-select | `options[]` | Toggle checkboxes, confirm |
+| Text input | `text` | Type message or command |
 
-## Events monitored
+## Pattern reference
 
-Built-in patterns cover:
+Built-in patterns match both English and Chinese output:
 
-- rpiv workflow phase transitions (implement, blueprint, design, plan)
-- `ask_user_question` patterns
-- Confirmation prompts (yes/no, continue, press Enter)
-- Completion summaries
-- Subagent delegation (background agents)
-- Generic questions (catch-all)
+| Pattern | Matches | Auto-handled |
+| --------- | --------- | :---: |
+| `next-step` | `**Next step:** /skill:xxx` / `下一步： /skill:xxx` | ✅ Auto-executes |
+| `confirm-prompt` | `Confirm?`, `Proceed?`, `确认?` | ✅ Enter |
+| `press-enter` | `Press Enter to continue`, `按回车继续` | ✅ Enter |
+| `yes-no` | `(Y/N)`, `(y/n)` | ✅ Enter |
+| `follow-up` | `💬 Follow-up:`, `💬 反馈` | ✅ Acknowledge |
+| `implement-verdict` | `Verdict: PASS` | ✅ Acknowledge |
+| `generic-question` | Lines ending with `？` or `?` | → Agent |
+| `choice-prompt` | `请选择`, `Select option` | → Agent |
+| `chinese-question` | `要不要`, `是不是`, `可以吗` | → Agent |
 
-## Audit log
+## Safety
 
-All events are recorded to `.guardian/audit.jsonl` (project root):
-
-```jsonl
-{"eventNumber":1,"ts":"2026-07-04T12:00:00.000Z","eventType":"pattern_match","paneRef":{"paneId":"w1:p1"},"triggerContext":"...","responseSent":"sent Enter"}
-```
+- **Delta matching**: Old output never re-triggers patterns
+- **Agent in the loop**: Questions, stalls, and uncertainties always return to agent
+- **Pattern cooldown**: Same pattern won't re-trigger within 15s
+- **Pane disappearance**: After 5 consecutive read failures, auto-stops
+- **User override**: `timeout` parameter sets max runtime
 
 ## Development
 
@@ -127,10 +164,19 @@ npm install
 npx tsc --noEmit   # type-check
 ```
 
-## Peer Dependencies
+## Project structure
 
-- `@earendil-works/pi-coding-agent` (required at runtime)
-- `@ogulcancelik/pi-herdr` (required for pane operations)
+```
+index.ts          # Extension entry — registers all tools
+guard.ts          # Guard tool — main monitoring loop with TypeBox params
+guard-pane.ts     # Legacy guard_pane tool (kept for compatibility)
+respond.ts        # Respond tool — sends keys/text to panes
+patterns.ts       # Pattern definitions (17+ built-in patterns)
+state.ts          # Shared state management
+audit.ts          # Audit logging to .guardian/audit.jsonl
+sleep.ts          # AbortSignal-safe sleep helpers
+skills/guard/     # /skill:guard skill definition
+```
 
 ## License
 
