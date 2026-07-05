@@ -194,7 +194,15 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 				try {
 					const readResult = await pi.exec(
 						"herdr",
-						["pane", "read", params.pane, "--source", "recent-unwrapped", "--lines", "200"],
+						[
+							"pane",
+							"read",
+							params.pane,
+							"--source",
+							"recent-unwrapped",
+							"--lines",
+							"200",
+						],
 						{
 							signal,
 							timeout: Math.min(interval + 2000, 10000),
