@@ -11,6 +11,7 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 - **`$ARGUMENTS` 是 pane ID → 直接调 `guard(pane="$ARGUMENTS")`**
 - **`$ARGUMENTS` 为空 → 必须先用 `ask_user_question` 让用户选择**
 - 禁止自己分析/决定 pane
+- **禁止关闭被监控的 pane** — 任何时候都不要用 `herdr stop` 或 `pane close` 关闭 worker 的 pane
 
 ## Steps
 
