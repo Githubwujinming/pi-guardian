@@ -101,8 +101,11 @@ Repeat Steps 3-4 automatically. Do NOT ask the user "what to do next" — keep t
 Stop only when:
 
 - The user explicitly tells you to stop
-- The monitored pane's task is complete and no more steps are expected
-- You determine no further action is needed (and confirm with the user)
+- The monitored agent has no more steps and is idle for an extended period (stall detected)
+- The monitored pane is closed or unreachable
+
+Do NOT stop just because one task completed — the agent may start another task at any time.
+Do NOT ask "what to do next" — just resume monitoring.
 
 ### Step 5: Stopping
 
