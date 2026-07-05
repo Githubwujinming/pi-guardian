@@ -48,3 +48,6 @@ test-results/
 .rpiv/
 .guardian/
 *:Zone.Identifier
+
+# Shazam
+.shazam/
