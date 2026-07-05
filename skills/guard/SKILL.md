@@ -10,23 +10,18 @@ allowed-tools: guard, respond, herdr, ask_user_question
 
 ### 1. Start monitoring
 
-`$ARGUMENTS` 就是要监控的目标。按以下顺序解析：
+**推荐直接传 pane ID（最可靠）：**
 
-**A. 如果 $ARGUMENTS 是 pane ID（w1:pX 格式）**
+`/skill:guard w1:p1` → 立即调用 `guard(pane="w1:p1")`
 
-直接调用 `guard(pane="$ARGUMENTS")`，不要做其他任何事情。
+**也支持自然语言（尽量使用 ID）：**
 
-**B. 如果是自然语言描述（如"左边的 pane"、"第2个 pane"、"正在运行 implement 的 pane"）**
+如果描述像 "右边的 pane"、"第2个 pane"：
 
-1. 用 `herdr list` 获取当前标签页的所有 pane（`herdr tab list` 可查看当前标签页）
-2. **只从当前标签页中匹配**，忽略其它标签页的 pane
-3. 按描述匹配：
-   - `左边的` = 当前标签页的第一个 pane
-   - `右边的` = 当前标签页的第二个 pane
-   - `第N个` = 当前标签页的第 N 个
-   - `别名/ID` = 直接匹配
-4. 匹配到目标后，调用 `guard(pane=<paneId>)`
-5. 如果无法确定，提示用 pane ID 重试
+1. 用 `herdr list` 列出当前标签页的所有 pane
+2. 按描述尽量匹配（注：列表顺序可能不反映视觉布局）
+3. 匹配到就调用 `guard(pane=<id>)`
+4. 匹配不到或不确定 → 提示用 pane ID 重试
 
 ### 2. Handle events
 
