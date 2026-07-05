@@ -106,12 +106,24 @@ async function tryAutoRespond(
 		}
 	}
 
-	// implement-done / completion-summary / implement-phase-result → 静默确认，继续值守
+	// follow-up → 检查是否包含 /skill:xxx 命令（如 /skill:commit），有则执行
+	if (matchName === "follow-up") {
+		const cmdMatch = matchedText?.match(/\/skill:\S+(?:\s+\S+)?/i);
+		if (cmdMatch) {
+			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
+				timeout: 10000,
+			});
+			return `executed ${cmdMatch[0]}`;
+		}
+		// 没有命令则静默确认
+		return "acknowledged";
+	}
+
+	// implement-done / completion-summary / implement-phase-result → 静默确认
 	if (
 		[
 			"implement-done",
 			"completion-summary",
-			"follow-up",
 			"implement-complete",
 			"implement-verdict",
 			"implement-phase-result",

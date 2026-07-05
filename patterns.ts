@@ -107,8 +107,7 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
 	{
 		name: "yes-no",
 		// (Y/N) (y/n) [Y/N] yes/no 等——明确的是非选择
-		regex:
-			/[（(]?[Yy]es\/[Nn]o[)）]?|\(Y\/N\)|\(y\/n\)|\[Y\/N\]|\[y\/n\]/i,
+		regex: /[（(]?[Yy]es\/[Nn]o[)）]?|\(Y\/N\)|\(y\/n\)|\[Y\/N\]|\[y\/n\]/i,
 	},
 	{
 		name: "press-enter",
@@ -127,8 +126,7 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
 	{
 		name: "subagent-start",
 		// 注意：\"Background agent started\" 中末尾没有 \"background\"，所以去掉 .*background
-		regex:
-			/(Background|New)\s+agent\s+(started|created|dispatched|launched)/i,
+		regex: /(Background|New)\s+agent\s+(started|created|dispatched|launched)/i,
 	},
 	{
 		name: "subagent-complete",

@@ -147,8 +147,19 @@ async function tryAutoRespond(
 		}
 	}
 
+	// follow-up: 检查是否包含 /skill:xxx 命令，有则执行
+	if (matchName === "follow-up") {
+		const cmdMatch = matchedText?.match(/\/skill:\S+(?:\s+\S+)?/i);
+		if (cmdMatch) {
+			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
+				timeout: 10000,
+			});
+			return `auto-executed ${cmdMatch[0]}`;
+		}
+		return "acknowledged (no command)";
+	}
+
 	// implement-done / completion-summary: 工作流自然结束，继续值守等待新事件
-	// 不返回字符串表示 autoRespond 静默处理，继续监控
 	if (matchName === "implement-done" || matchName === "completion-summary") {
 		return "acknowledged (no action needed)";
 	}
