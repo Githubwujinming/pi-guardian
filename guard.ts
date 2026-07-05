@@ -113,6 +113,7 @@ async function tryAutoRespond(
 			"completion-summary",
 			"follow-up",
 			"implement-complete",
+			"implement-verdict",
 		].includes(matchName)
 	) {
 		return "acknowledged";
