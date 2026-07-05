@@ -18,7 +18,6 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "@sinclair/typebox";
-import { snapshotWatches } from "./state.js";
 
 // ---------------------------------------------------------------------------
 // TypeBox parameter schema
@@ -81,10 +80,10 @@ export function registerRespondTool(pi: ExtensionAPI): void {
         const idx = params.optionIndex;
         for (let i = 0; i < idx; i++) {
           if (signal?.aborted) throw new Error("Canceled");
-          await pi.exec("herdr", ["send-keys", paneRef, "Down"], { signal });
+          await pi.exec("herdr", ["pane", "send-keys", paneRef, "Down"], { signal });
         }
         if (signal?.aborted) throw new Error("Canceled");
-        await pi.exec("herdr", ["send-keys", paneRef, "Enter"], { signal });
+        await pi.exec("herdr", ["pane", "send-keys", paneRef, "Enter"], { signal });
 
         return {
           content: [{ type: "text", text: `Selected option ${idx} in ${paneRef}` }],
@@ -101,11 +100,11 @@ export function registerRespondTool(pi: ExtensionAPI): void {
           const steps = target - currentPos;
           for (let i = 0; i < steps; i++) {
             if (signal?.aborted) throw new Error("Canceled");
-            await pi.exec("herdr", ["send-keys", paneRef, "Down"], { signal });
+            await pi.exec("herdr", ["pane", "send-keys", paneRef, "Down"], { signal });
           }
           currentPos = target;
           if (signal?.aborted) throw new Error("Canceled");
-          await pi.exec("herdr", ["send-keys", paneRef, "Space"], { signal });
+          await pi.exec("herdr", ["pane", "send-keys", paneRef, "Space"], { signal });
         }
 
         // Navigate past last option to "Next / 下一步"
@@ -113,10 +112,10 @@ export function registerRespondTool(pi: ExtensionAPI): void {
         const nextSteps = (last + 1) - currentPos;
         for (let i = 0; i < nextSteps; i++) {
           if (signal?.aborted) throw new Error("Canceled");
-          await pi.exec("herdr", ["send-keys", paneRef, "Down"], { signal });
+          await pi.exec("herdr", ["pane", "send-keys", paneRef, "Down"], { signal });
         }
         if (signal?.aborted) throw new Error("Canceled");
-        await pi.exec("herdr", ["send-keys", paneRef, "Enter"], { signal });
+        await pi.exec("herdr", ["pane", "send-keys", paneRef, "Enter"], { signal });
 
         return {
           content: [{ type: "text", text: `Toggled options [${sorted.join(", ")}] in ${paneRef}` }],
@@ -126,7 +125,7 @@ export function registerRespondTool(pi: ExtensionAPI): void {
 
       // --- Text input: herdr run (atomic text + Enter) ---
       if (params.text != null) {
-        await pi.exec("herdr", ["run", paneRef, params.text], { signal });
+        await pi.exec("herdr", ["pane", "run", paneRef, params.text], { signal });
 
         return {
           content: [{ type: "text", text: `Sent "${params.text}" to ${paneRef}` }],

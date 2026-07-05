@@ -26,8 +26,8 @@ import type {
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "@sinclair/typebox";
 import { sleepWithSignal, throwIfAborted } from "./sleep.js";
-import { setActiveWatch, removeActiveWatch, snapshotWatches, type ActiveWatch } from "./state.js";
-import { matchBuiltinPatterns, type PatternMatch } from "./patterns.js";
+import { setActiveWatch, removeActiveWatch, type ActiveWatch } from "./state.js";
+import { matchBuiltinPatterns } from "./patterns.js";
 
 // ---------------------------------------------------------------------------
 // Module-level state
@@ -113,7 +113,7 @@ async function tryAutoRespond(
   const safeAuto = new Set(["confirm-prompt", "press-enter", "yes-no"]);
 
   if (safeAuto.has(matchName)) {
-    await pi.exec("herdr", ["send-keys", paneId, "Enter"], { timeout: 5000 });
+    await pi.exec("herdr", ["pane", "send-keys", paneId, "Enter"], { timeout: 5000 });
     return "sent Enter (auto-confirm)";
   }
 
@@ -189,7 +189,6 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
       let lastOutput = "";
       let stallStart: number | null = null;
       let subagentActive = false;
-      let subagentStartedAt: number | null = null;
       let readFailCount = 0;
       const MAX_READ_FAILURES = 5;
 
@@ -219,7 +218,7 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
           // ---- Read pane output ----
           let output = "";
           try {
-            const readResult = await pi.exec("herdr", ["read", params.pane, "--lines", "200"], {
+            const readResult = await pi.exec("herdr", ["pane", "read", params.pane, "--lines", "200"], {
               signal: mergedSignal,
               timeout: Math.min(interval + 2000, 10000),
             });
@@ -252,11 +251,9 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
             // until the subagent returns. Detect this and suppress stall detection.
             if (output.match(/(Background|New)\s+agent\s+(started|created|dispatched|launched).*background/i)) {
               subagentActive = true;
-              subagentStartedAt = now;
             }
             if (output.match(/Background\s+agent.*completed|subagent.*result/i)) {
               subagentActive = false;
-              subagentStartedAt = null;
             }
 
             // ---- Pattern matching ----
