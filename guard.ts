@@ -84,18 +84,18 @@ async function tryAutoRespond(
 	}
 
 	// next-step / rpiv-chain-forward → 提取 /skill:xxx 命令并执行
-	// 注意：执行后加 LONG_COOLDOWN（5min），防止同一命令反复触发
+	// 注意：提取时只取 /skill:xxx 本身，后面的破折号/说明文字不能包含
 	if (matchName === "next-step" || matchName === "rpiv-chain-forward") {
-		// 先尝试提取完整命令（含路径参数）
-		const fullMatch = matchedText?.match(/\/skill:\S+\s+\S+/i);
-		if (fullMatch) {
-			await pi.exec("herdr", ["pane", "run", paneId, fullMatch[0]], {
+		// 先尝试提取含路径参数：/skill:xxx .rpiv/artifacts/...
+		const pathMatch = matchedText?.match(/\/skill:\S+\s+\.rpiv\/artifacts\S+/i);
+		if (pathMatch) {
+			await pi.exec("herdr", ["pane", "run", paneId, pathMatch[0]], {
 				timeout: 10000,
 			});
 			markPatternCooldown(matchName);
-			return `executed ${fullMatch[0]}`;
+			return `executed ${pathMatch[0]}`;
 		}
-		// 回退：只提取 /skill:xxx 本身
+		// 回退：只提取 /skill:xxx 本身（不含后续的破折号、说明文字等）
 		const cmdMatch = matchedText?.match(/\/skill:\S+/i);
 		if (cmdMatch) {
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
@@ -108,7 +108,7 @@ async function tryAutoRespond(
 
 	// follow-up → 检查是否包含 /skill:xxx 命令（如 /skill:commit），有则执行
 	if (matchName === "follow-up") {
-		const cmdMatch = matchedText?.match(/\/skill:\S+(?:\s+\S+)?/i);
+		const cmdMatch = matchedText?.match(/\/skill:\S+/i);
 		if (cmdMatch) {
 			await pi.exec("herdr", ["pane", "run", paneId, cmdMatch[0]], {
 				timeout: 10000,
