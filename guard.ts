@@ -23,7 +23,6 @@ import { matchBuiltinPatterns } from "./patterns.js";
 // Module-level state
 // ---------------------------------------------------------------------------
 
-
 // Map<patternName, expireAt> for dedup
 const patternCooldowns = new Map<string, number>();
 const PATTERN_COOLDOWN_MS = 15_000;
