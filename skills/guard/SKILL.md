@@ -35,32 +35,52 @@ Explicit `--key value` parameters (for scripting / precise control):
 
 ## Steps
 
-### Step 1: Resolve Pane Reference
+### Step 1: Parse $ARGUMENTS
 
-#### 情况 A：$ARGUMENTS 包含 `--pane`（显式指定）
+**规则：先检查 `$ARGUMENTS` 是否包含 `--pane`，如果是，立即跳到规则 A，不许走规则 B/C。**
 
-**直接解析，不做任何额外操作：**
+---
 
-1. 从 `$ARGUMENTS` 中提取 `--pane <value>` 作为 pane ID
-2. 同样提取 `--plan`、`--interval`、`--patterns`、`--timeout`（如果有）
-3. **直接跳到 Step 2**，调用 `guard_pane(pane=<value>, ...)`
-4. **禁止：** 列 pane 列表、确认 pane 是否存在、问用户、查布局。**直接调用。**
+**规则 A：`$ARGUMENTS` 包含 `--pane`（显式参数模式）**
 
-#### 情况 B：用户说"继续"或"resume"
+执行步骤：
 
-1. 从会话历史中查找上一次 `guard_pane` 工具调用的参数（pane, plan, interval 等）
-2. 如果用户指定了不同的 pane（如"继续值守右边的 pane"），用情况 C 的方法解析
-3. 直接调用 `guard_pane(pane=<pane>, plan=<plan>, ...)`——不需要问用户
+```
+1. 从 $ARGUMENTS 中提取 --pane 后面的单词 → paneId
+2. 提取 --plan、--interval、--patterns、--timeout（如果有）
+3. 立即调用 guard_pane(pane=paneId, ...)
+4. 完成 Step 1。不要输出任何文字，不要列 pane 列表，不要确认。
+```
 
-#### 情况 C：自然语言描述
+**禁止行为（规则 A 下）：**
 
-1. 用 `herdr list` 获取所有 pane
-2. 按以下规则匹配：
-   - `左边的` / `右边的` → pane 列表中的第 1/2 个
-   - `第N个` → 列表中的第 N 个（1-based）
-   - `正在运行 X 的` → 按别名/状态过滤
-   - `别名/ID` → 直接匹配
-3. 如果无法确定，用 `ask_user_question` 澄清。**但仅限自然语言模式。**
+- 禁止列出所有 pane 让用户选择
+- 禁止输出"你想监控哪个 pane？"
+- 禁止用 herdr list 查布局
+- 禁止问用户任何问题
+- 禁止输出使用说明
+
+**即使 paneId 不存在或错误，也直接传给 guard_pane——tool 自己会报错。**
+
+---
+
+**规则 B：用户说"继续"或"resume"（恢复模式）**
+
+```
+1. 从会话历史找上次 guard_pane 调用的参数
+2. 如果用户提到了不同 pane（如"继续值守右边的"），转规则 C 解析
+3. 直接调用 guard_pane(pane=..., plan=...)
+```
+
+---
+
+**规则 C：自然语言描述（自然语言模式）**
+
+```
+1. 用 herdr list 获取所有 pane
+2. 按描述匹配：左边的/右边的/第N个/别名
+3. 无法确定才问用户
+```
 
 ### Step 2: Start Guard Loop
 
