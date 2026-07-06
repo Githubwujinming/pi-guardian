@@ -20,7 +20,7 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 | 参数 | 类型 | 默认值 | 说明 |
 | ------ | ------ | -------- | ------ |
 | `pane` | string | 必填 | 要监控的 pane ID |
-| `plan` | string | — | 计划文档路径（供上下文参考，暂未用于自动决策） |
+| `plan` | string | - | 计划/需求/设计文档路径,LLM 决策时作为上下文参考 |
 | `interval` | number | 500 | 轮询间隔 ms |
 | `timeout` | number | — | 自动停止时间 ms |
 | `patterns` | string[] | — | 自定义正则模式

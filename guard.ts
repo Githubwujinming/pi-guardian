@@ -167,6 +167,18 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 			const interval = params.interval ?? 500;
 			const watchTimeout = params.timeout;
 
+			// 读取上下文文档（计划/需求/设计文档等），供 LLM 决策时参考
+			let planContext = "";
+			if (params.plan) {
+				try {
+					const { readFileSync } = await import("node:fs");
+					const planContent = readFileSync(params.plan, "utf-8");
+					planContext = `\n\n--- 参考文档: ${params.plan} ---\n${planContent.slice(0, 3000)}\n--- 文档结束 ---\n`;
+				} catch (e) {
+					planContext = `\n\n[参考文档 ${params.plan} 读取失败]\n`;
+				}
+			}
+
 			// 状态
 			let lastOutput = "";
 			let stallStart: number | null = null;
@@ -304,7 +316,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 									patternName: match.patternName,
 									matchedText: match.matchedText,
 								} as GuardEvent,
-								context: output.slice(-4000),
+								context: output.slice(-4000) + planContext,
 								elapsed: Math.floor(elapsed / 1000),
 								info: "needs_llm",
 							},
@@ -330,7 +342,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 									patternName: "stall-fallback",
 									matchedText: "30s no output",
 								} as GuardEvent,
-								context: output.slice(-4000),
+								context: output.slice(-4000) + planContext,
 								elapsed: Math.floor(elapsed / 1000),
 								info: "stall",
 							},
