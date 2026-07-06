@@ -9,6 +9,7 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 ## ⚠️ 硬性规则
 
 - **`$ARGUMENTS` 是 pane ID → 直接调 `guard(pane="$ARGUMENTS")`**
+- **`$ARGUMENTS` 是 pane ID + 文档路径** → 调 `guard(pane="paneId", context="doc1.md,doc2.md")`
 - **`$ARGUMENTS` 为空 → 必须先用 `ask_user_question` 让用户选择**
 - 禁止自己分析/决定 pane
 - **禁止关闭被监控的 pane** — 任何时候都不要用 `herdr stop` 或 `pane close` 关闭 worker 的 pane
@@ -30,8 +31,9 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 ### 1. 确定 pane
 
 ```
-$ARGUMENTS = ""?   → ask_user_question(列出所有 pane) → 用户选 → guard(pane=...)
-$ARGUMENTS = ID?   → guard(pane="$ARGUMENTS")
+$ARGUMENTS = ""?       → ask_user_question(列出所有 pane) → 用户选 → guard(pane=...)
+$ARGUMENTS = "w1:p1"?   → guard(pane="w1:p1")
+$ARGUMENTS = "w1:p1 plan.md,design.md"?   → guard(pane="w1:p1", context="plan.md,design.md")
 ```
 
 ### 2. 值守循环
