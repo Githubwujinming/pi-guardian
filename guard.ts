@@ -353,16 +353,20 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 
 				// 心跳（每 10s）
 				if (onUpdate && elapsed % 10000 < interval) {
+					const contextInfo = params.context
+						? ` context: ${params.context}`
+						: "";
 					onUpdate({
 						content: [
 							{
 								type: "text",
-								text: `[guard] Monitoring ${params.pane} (${Math.floor(elapsed / 1000)}s)`,
+								text: `[guard] Monitoring ${params.pane} (${Math.floor(elapsed / 1000)}s)${contextInfo}`,
 							},
 						],
 						details: {
 							action: "heartbeat",
 							pane: params.pane,
+							context: params.context,
 							elapsed: Math.floor(elapsed / 1000),
 						},
 					});

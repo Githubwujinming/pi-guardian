@@ -1,7 +1,7 @@
 ---
 name: guard
 description: Monitor a herdr pane and auto-respond to questions during workflows
-allowed-tools: guard, respond, herdr, ask_user_question, Write
+allowed-tools: guard, respond, herdr, ask_user_question
 ---
 
 # Guard
@@ -14,7 +14,8 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 - **`$ARGUMENTS` 为空** → 先用 `ask_user_question` 让用户选 pane
 - 禁止自己分析/决定 pane
 - **禁止关闭被监控的 pane** — 任何时候都不要用 `herdr stop` 或 `pane close` 关闭 worker 的 pane
-- **补充参考文档**：值守期间用户提到的文档路径，记下来。后续需要决策时自动用 `read` 读取分析，不用现在就读
+- **禁止修改 worker 的任何文件** — 包括代码、文档、配置文件等。只通过 `respond` 发送指令
+- **补充参考文档**：值守期间用户提到的文档路径记下来，后续决策时用 `read` 读取分析
 
 ## 可用参数
 
@@ -79,10 +80,13 @@ $ARGUMENTS = "w1:p1 plan.md,design.md"?   → guard(pane="w1:p1", context="plan.
 
 当 worker 长时间空闲（stall 后无新任务）、或用户明确要求停止时：
 
-用 `Write` 工具在 `.guardian/` 目录下创建值守报告：
+用 `bash` 在 `.guardian/` 目录下创建值守报告：
 
-```
-.guardian/report-<日期时间>.md
+```bash
+cat > .guardian/report-<日期时间>.md << 'EOF'
+# 值守报告
+...
+EOF
 ```
 
 报告内容：
