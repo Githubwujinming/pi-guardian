@@ -13,6 +13,18 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 - 禁止自己分析/决定 pane
 - **禁止关闭被监控的 pane** — 任何时候都不要用 `herdr stop` 或 `pane close` 关闭 worker 的 pane
 
+## 可用参数
+
+`guard` 工具支持的参数（通过 `guard(pane=..., plan=..., interval=...)` 传入）：
+
+| 参数 | 类型 | 默认值 | 说明 |
+| ------ | ------ | -------- | ------ |
+| `pane` | string | 必填 | 要监控的 pane ID |
+| `plan` | string | — | 计划文档路径（供上下文参考，暂未用于自动决策） |
+| `interval` | number | 500 | 轮询间隔 ms |
+| `timeout` | number | — | 自动停止时间 ms |
+| `patterns` | string[] | — | 自定义正则模式
+
 ## Steps
 
 ### 1. 确定 pane
