@@ -20,7 +20,7 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 | 参数 | 类型 | 默认值 | 说明 |
 | ------ | ------ | -------- | ------ |
 | `pane` | string | 必填 | 要监控的 pane ID |
-| `context` | string | — | 参考文档路径，支持多个用逗号分隔（如 `plan.md,design.md`），LLM 决策时作为上下文 |
+| `context` | string | — | 参考文档路径，多个用逗号分隔（如 `plan.md,design.md`）。需要决策时 agent 可用 `read` 工具按需读取 |
 | `interval` | number | 500 | 轮询间隔 ms |
 | `timeout` | number | — | 自动停止时间 ms |
 | `patterns` | string[] | — | 自定义正则模式
@@ -53,6 +53,7 @@ $ARGUMENTS = ID?   → guard(pane="$ARGUMENTS")
 
 - 问句 → 分析选项，调 `respond(pane=..., optionIndex=N)`
 - stall → `herdr read` 探索后决策
+- **参考文档**：如果 `context` 中列出了文档路径，需要时可调用 `read <path>` 读取完整内容辅助决策
 - 其他 → 恢复值守
 
 ### 3. 不确定时

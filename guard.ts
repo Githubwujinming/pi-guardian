@@ -36,7 +36,10 @@ const guardParams = Type.Object({
 	pane: Type.String({ description: "Pane ID to monitor (e.g. w1:p1)" }),
 	/** 参考文档路径（计划/需求/设计/接口文档等，支持多个用逗号分隔） */
 	context: Type.Optional(
-		Type.String({ description: "Document paths for LLM context (comma-separated, supports: plan.md, design.md, api.md)" }),
+		Type.String({
+			description:
+				"Document paths for LLM context (comma-separated, supports: plan.md, design.md, api.md)",
+		}),
 	),
 	/** 自定义正则模式 */
 	patterns: Type.Optional(
@@ -167,19 +170,14 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 			const interval = params.interval ?? 500;
 			const watchTimeout = params.timeout;
 
-			// 读取参考文档（计划/需求/设计文档等），供 LLM 决策时参考
-			let docContext = "";
+			// 参考文档路径列表（不读取内容，agent 可用 read 工具按需读取）
+			let docList = "";
 			if (params.context) {
-				const paths = params.context.split(",").map((s) => s.trim()).filter(Boolean);
-				const { readFileSync } = await import("node:fs");
-				for (const filePath of paths) {
-					try {
-						const content = readFileSync(filePath, "utf-8");
-						docContext += `\n\n--- 参考文档: ${filePath} ---\n${content.slice(0, 2000)}\n--- 文档结束 ---\n`;
-					} catch {
-						docContext += `\n\n[参考文档 ${filePath} 读取失败]\n`;
-					}
-				}
+				const paths = params.context
+					.split(",")
+					.map((s) => s.trim())
+					.filter(Boolean);
+				docList = `\n\n[参考文档](${paths.join(", ")})\n需要决策时可使用 read 工具读取这些文档。\n`;
 			}
 
 			// 状态
@@ -319,7 +317,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 									patternName: match.patternName,
 									matchedText: match.matchedText,
 								} as GuardEvent,
-								context: output.slice(-4000) + docContext,
+								context: output.slice(-4000) + docList,
 								elapsed: Math.floor(elapsed / 1000),
 								info: "needs_llm",
 							},
@@ -345,7 +343,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 									patternName: "stall-fallback",
 									matchedText: "30s no output",
 								} as GuardEvent,
-								context: output.slice(-4000) + docContext,
+								context: output.slice(-4000) + docList,
 								elapsed: Math.floor(elapsed / 1000),
 								info: "stall",
 							},
