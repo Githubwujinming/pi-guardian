@@ -15,7 +15,7 @@ allowed-tools: guard, respond, herdr, ask_user_question
 - 禁止自己分析/决定 pane
 - **禁止关闭被监控的 pane** — 任何时候都不要用 `herdr stop` 或 `pane close` 关闭 worker 的 pane
 - **禁止修改 worker 的任何文件** — 包括代码、文档、配置文件等。只通过 `respond` 发送指令
-- **补充参考文档**：值守期间用户提到的文档路径记下来，后续决策时用 `read` 读取分析
+- **补充参考文档**：值守期间用户提到的文档路径记下来，并在下次调 `guard()` 时传回 `context` 参数，所有累计文档都会显示在界面上
 
 ## 可用参数
 
@@ -74,7 +74,7 @@ $ARGUMENTS = "w1:p1 plan.md,design.md"?   → guard(pane="w1:p1", context="plan.
 
 ### 4. 恢复值守
 
-调完 respond 后，立即调 `guard(pane=...)` 继续。
+调完 respond 后，立即调 `guard(pane=..., context="所有已累计的文档路径")` 继续。把所有已知的参考文档路径（启动时传入 + 运行时补充）都传回 `context`，工具会更新显示。
 
 ### 5. 任务完成时输出报告
 
