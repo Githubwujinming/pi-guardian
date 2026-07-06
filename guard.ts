@@ -34,9 +34,9 @@ const PATTERN_COOLDOWN_MS = 15_000;
 const guardParams = Type.Object({
 	/** 要监控的 pane ID */
 	pane: Type.String({ description: "Pane ID to monitor (e.g. w1:p1)" }),
-	/** 可选的计划文档路径 */
-	plan: Type.Optional(
-		Type.String({ description: "Plan document path for auto-respond context" }),
+	/** 参考文档路径（计划/需求/设计/接口文档等，支持多个用逗号分隔） */
+	context: Type.Optional(
+		Type.String({ description: "Document paths for LLM context (comma-separated, supports: plan.md, design.md, api.md)" }),
 	),
 	/** 自定义正则模式 */
 	patterns: Type.Optional(
@@ -167,15 +167,18 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 			const interval = params.interval ?? 500;
 			const watchTimeout = params.timeout;
 
-			// 读取上下文文档（计划/需求/设计文档等），供 LLM 决策时参考
-			let planContext = "";
-			if (params.plan) {
-				try {
-					const { readFileSync } = await import("node:fs");
-					const planContent = readFileSync(params.plan, "utf-8");
-					planContext = `\n\n--- 参考文档: ${params.plan} ---\n${planContent.slice(0, 3000)}\n--- 文档结束 ---\n`;
-				} catch (e) {
-					planContext = `\n\n[参考文档 ${params.plan} 读取失败]\n`;
+			// 读取参考文档（计划/需求/设计文档等），供 LLM 决策时参考
+			let docContext = "";
+			if (params.context) {
+				const paths = params.context.split(",").map((s) => s.trim()).filter(Boolean);
+				const { readFileSync } = await import("node:fs");
+				for (const filePath of paths) {
+					try {
+						const content = readFileSync(filePath, "utf-8");
+						docContext += `\n\n--- 参考文档: ${filePath} ---\n${content.slice(0, 2000)}\n--- 文档结束 ---\n`;
+					} catch {
+						docContext += `\n\n[参考文档 ${filePath} 读取失败]\n`;
+					}
 				}
 			}
 
@@ -316,7 +319,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 									patternName: match.patternName,
 									matchedText: match.matchedText,
 								} as GuardEvent,
-								context: output.slice(-4000) + planContext,
+								context: output.slice(-4000) + docContext,
 								elapsed: Math.floor(elapsed / 1000),
 								info: "needs_llm",
 							},
@@ -342,7 +345,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 									patternName: "stall-fallback",
 									matchedText: "30s no output",
 								} as GuardEvent,
-								context: output.slice(-4000) + planContext,
+								context: output.slice(-4000) + docContext,
 								elapsed: Math.floor(elapsed / 1000),
 								info: "stall",
 							},
@@ -374,7 +377,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 		renderCall(args: GuardArgs, theme) {
 			const parts = [theme.bold("guard")];
 			parts.push(`  pane: ${args.pane}`);
-			if (args.plan) parts.push(`  plan: ${args.plan}`);
+			if (args.context) parts.push(`  context: ${args.context}`);
 			if (args.interval) parts.push(`  interval: ${args.interval}ms`);
 			return new Text(parts.join("\n"));
 		},

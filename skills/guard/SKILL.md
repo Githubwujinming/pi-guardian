@@ -15,12 +15,12 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 
 ## 可用参数
 
-`guard` 工具支持的参数（通过 `guard(pane=..., plan=..., interval=...)` 传入）：
+`guard` 工具支持的参数：
 
 | 参数 | 类型 | 默认值 | 说明 |
 | ------ | ------ | -------- | ------ |
 | `pane` | string | 必填 | 要监控的 pane ID |
-| `plan` | string | - | 计划/需求/设计文档路径,LLM 决策时作为上下文参考 |
+| `context` | string | — | 参考文档路径，支持多个用逗号分隔（如 `plan.md,design.md`），LLM 决策时作为上下文 |
 | `interval` | number | 500 | 轮询间隔 ms |
 | `timeout` | number | — | 自动停止时间 ms |
 | `patterns` | string[] | — | 自定义正则模式
