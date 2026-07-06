@@ -14,7 +14,7 @@ allowed-tools: guard, respond, herdr, ask_user_question, Write
 - **`$ARGUMENTS` 为空** → 先用 `ask_user_question` 让用户选 pane
 - 禁止自己分析/决定 pane
 - **禁止关闭被监控的 pane** — 任何时候都不要用 `herdr stop` 或 `pane close` 关闭 worker 的 pane
-- **运行时引用文档**：值守期间用户提到文档路径时，用 `read` 工具读取，后续决策可用
+- **补充参考文档**：值守期间用户提到的文档路径，记下来。后续需要决策时自动用 `read` 读取分析，不用现在就读
 
 ## 可用参数
 
@@ -58,7 +58,7 @@ $ARGUMENTS = "w1:p1 plan.md,design.md"?   → guard(pane="w1:p1", context="plan.
 
 - 问句 → 分析选项，调 `respond(pane=..., optionIndex=N)`
 - stall → `herdr read` 探索后决策
-- **参考文档**：如果 `context` 中列出了文档路径，需要时可调用 `read <path>` 读取完整内容辅助决策
+- **参考文档**：启动时 `context` 参数传入的文档 + 值守期间用户补充的文档，都需要时用 `read` 读取分析
 - 其他 → 恢复值守
 
 ### 3. 不确定时
