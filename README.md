@@ -67,11 +67,14 @@ Requires `@ogulcancelik/pi-herdr` (peer dependency).
 
 ```bash
 # Via skill (recommended):
-/skill:guard w1:p1     # 指定 pane ID，直接值守
-/skill:guard            # 不指定 pane，列出可选列表让用户选择
+/skill:guard                    # 不指定 → 列 pane 让用户选
+/skill:guard plan.md            # 只传文档 → 列 pane + 带文档值守
+/skill:guard w1:p1              # 指定 pane ID，直接值守
+/skill:guard w1:p1 plan.md,design.md  # pane + 参考文档
 
 # Or directly via tool:
 guard(pane="w1:p1")
+guard(pane="w1:p1", context="plan.md,design.md")
 guard(pane="别名")
 ```
 
