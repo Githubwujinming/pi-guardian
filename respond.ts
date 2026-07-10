@@ -28,10 +28,22 @@ const respondParams = Type.Object({
 	pane: Type.String(),
 
 	/** Option index for single-select (0-based). */
-	optionIndex: Type.Optional(Type.Number()),
+	optionIndex: Type.Optional(
+		Type.Number({
+			description:
+				"0-based option index (first option = 0). " +
+				"The display shows 1. 2. 3. but index 0 = first option.",
+		}),
+	),
 
 	/** Option indices for multi-select (0-based, toggled via Space). */
-	options: Type.Optional(Type.Array(Type.Number())),
+	options: Type.Optional(
+		Type.Array(Type.Number(), {
+			description:
+				"0-based option indices (first option = 0). " +
+				"Each index is navigated to and toggled via Space.",
+		}),
+	),
 
 	/** Text to type and submit. Use for "Type something." or command input. */
 	text: Type.Optional(Type.String()),
