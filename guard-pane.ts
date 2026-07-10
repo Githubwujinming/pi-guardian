@@ -77,8 +77,8 @@ const guardPaneParams = Type.Object({
 	/** Optional array of custom regex patterns to match in addition to builtins. */
 	patterns: Type.Optional(Type.Array(Type.String())),
 
-	/** Polling interval in ms (default 500). */
-	interval: Type.Optional(Type.Number({ default: 500 })),
+	/** Polling interval in ms (default 3000). Entry interval for active output; adapts up to 30s when stable. */
+	interval: Type.Optional(Type.Number({ default: 10000 })),
 
 	/**
 	 * Overall timeout in ms. When set, the watch stops automatically after
@@ -195,7 +195,7 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 		): Promise<AgentToolResult<GuardPaneDetails>> => {
 			const watchId = `guard-${++watchCounter}`;
 			const startedAt = Date.now();
-			const interval = params.interval ?? 500;
+			const interval = params.interval ?? 10000;
 			const userPatterns = params.patterns ?? [];
 			const autoRespond = params.autoRespond ?? true;
 			const watchTimeout = params.timeout;
@@ -237,6 +237,14 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 			let stallStart: number | null = null;
 			let subagentActive = false;
 			let readFailCount = 0;
+			let pollInterval = interval;
+			const BASE_POLL = interval;
+			const SUBAGENT_POLL = 15_000;
+			const MAX_POLL = 30_000;
+			const BACKOFF_STEP = 3000;
+			const BACKOFF_AFTER = 3;
+			// Track consecutive unchanged reads for adaptive backoff
+			let unchangedCount = 0;
 			const MAX_READ_FAILURES = 5;
 
 			try {
@@ -334,6 +342,10 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 
 					const hasChanged = output !== lastOutput && output.length > 0;
 
+					if (!hasChanged && lastOutput.length > 0) {
+						unchangedCount++;
+					}
+
 					if (hasChanged) {
 						// 只对新追加的内容做模式匹配（避免旧内容反复触发）
 						const deltaOutput =
@@ -352,11 +364,13 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 							)
 						) {
 							subagentActive = true;
+							pollInterval = SUBAGENT_POLL;
 						}
 						if (
 							output.match(/Background\s+agent.*completed|subagent.*result/i)
 						) {
 							subagentActive = false;
+							pollInterval = BASE_POLL;
 						}
 
 						// ---- Pattern matching ----
@@ -504,7 +518,15 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 						});
 					}
 
-					await sleepWithSignal(interval, mergedSignal);
+					// Adaptive polling: lower frequency when output is stable
+					if (unchangedCount >= BACKOFF_AFTER) {
+						pollInterval = Math.min(pollInterval + BACKOFF_STEP, MAX_POLL);
+					} else if (hasChanged) {
+						unchangedCount = 0;
+						if (!subagentActive) pollInterval = BASE_POLL;
+					}
+
+					await sleepWithSignal(pollInterval, mergedSignal);
 				}
 			} finally {
 				watch.status = "stopped";
@@ -531,7 +553,7 @@ export function registerGuardPaneTool(pi: ExtensionAPI): void {
 			const parts = [theme.bold("guard_pane")];
 			parts.push(`  pane: ${args.pane}`);
 			if (args.plan) parts.push(`  plan: ${args.plan}`);
-			parts.push(`  interval: ${args.interval ?? 500}ms`);
+			parts.push(`  interval: ${args.interval ?? 10000}ms`);
 			if (args.patterns?.length)
 				parts.push(`  patterns: ${args.patterns.join(", ")}`);
 			if (args.timeout) parts.push(`  timeout: ${args.timeout}ms`);

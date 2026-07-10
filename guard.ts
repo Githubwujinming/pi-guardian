@@ -47,7 +47,11 @@ const guardParams = Type.Object({
 	),
 	/** 轮询间隔（ms） */
 	interval: Type.Optional(
-		Type.Number({ default: 500, description: "Polling interval in ms" }),
+		Type.Number({
+			default: 10000,
+			description:
+				"Polling interval in ms. Base for active output; adapts up to 30s when stable or subagent running.",
+		}),
 	),
 	/** 超时（ms） */
 	timeout: Type.Optional(Type.Number({ description: "Watch timeout in ms" })),
@@ -167,7 +171,7 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 
 		async execute(_toolCallId, params, signal, onUpdate, _ctx) {
 			const startedAt = Date.now();
-			const interval = params.interval ?? 500;
+			const interval = params.interval ?? 10000;
 			const watchTimeout = params.timeout;
 
 			// 参考文档路径列表（不读取内容，agent 可用 read 工具按需读取）
@@ -185,6 +189,12 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 			let stallStart: number | null = null;
 			let readFailCount = 0;
 			const MAX_READ_FAILURES = 5;
+			let pollInterval = interval;
+			const BASE_POLL = interval;
+			const MAX_POLL = 30_000;
+			const BACKOFF_STEP = 3000;
+			const BACKOFF_AFTER = 3;
+			let unchangedCount = 0;
 
 			onUpdate?.({
 				content: [
@@ -258,6 +268,10 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 				}
 
 				const hasChanged = output !== lastOutput && output.length > 0;
+
+				if (!hasChanged && lastOutput.length > 0) {
+					unchangedCount++;
+				}
 
 				if (hasChanged) {
 					// 只对新追加的内容做模式匹配（避免旧内容反复触发）
@@ -372,7 +386,15 @@ export function registerGuardTool(pi: ExtensionAPI): void {
 					});
 				}
 
-				await new Promise((r) => setTimeout(r, interval));
+				// Adaptive polling: reduce frequency when output is stable
+				if (unchangedCount >= BACKOFF_AFTER) {
+					pollInterval = Math.min(pollInterval + BACKOFF_STEP, MAX_POLL);
+				} else if (hasChanged) {
+					unchangedCount = 0;
+					pollInterval = BASE_POLL;
+				}
+
+				await new Promise((r) => setTimeout(r, pollInterval));
 			}
 		},
 
