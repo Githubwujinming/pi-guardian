@@ -60,7 +60,13 @@ $ARGUMENTS = "w1:p1 plan.md,design.md"?   → guard(pane="w1:p1", context="plan.
 - **选项选择** → 分析选项，调 `respond(pane=..., optionIndex=N)`，**注意 N 是 0-based**（显示为 `1. 选项A` → index=0，显示为 `2. 选项B` → index=1，以此类推）
 - **文本输入提示**（匹配 `prompt-input` 模式，如"请输入""请提供""请告诉我""输入文件路径"等）→ 分析 worker 需要什么内容，从上下文/历史对话/现有文件中提取，调 `respond(pane=..., text="...")` 发送文本，**不要使用 `optionIndex`**
 - **worker 任务失败但 agent 仍在运行**（检测到 `Error:`、`failed`、`stopping workflow` 等关键字段，但 pane 仍有 pi 提示符/光标）→ 分析失败原因，通过 `respond(pane=..., text="<正确指令>")` 向 worker 发送新指令重新执行
-- stall → `herdr read` 探索后决策
+- stall → `herdr read` 探索后决策。用语义理解分析 worker 输出中是否有下一步工作指令：
+
+  1. **语义强度判断** — 识别是否以执行为目的的明确指令（如"下一步执行""接下来请运行"等），排除可选语气/限定语气的表述（如"可以考虑""建议……如果你愿意""从新会话开始"）
+  2. **上下文一致性判断** — 将识别到的指令与 `context` 参数传入的文档（plan.md、FRD 等）进行对比，确认该指令是当前工作目标的延续而非无关建议
+  3. **语义存疑时** — 调 `respond(pane=..., text="what should I do next?")` 先问 worker，而不是直接问用户
+
+  只有以上三步都无法确定时才问用户。
 - **参考文档**：启动时 `context` 参数传入的文档 + 值守期间用户补充的文档，都需要时用 `read` 读取分析
 - 其他 → 恢复值守
 
