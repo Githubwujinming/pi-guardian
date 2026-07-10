@@ -29,12 +29,14 @@ export const BUILTIN_PATTERNS: BuiltinPattern[] = [
 		// 匹配所有格式的下一步提示，后跟 /skill:xxx 路径
 		// 注意冒号在关闭 ** 之前：**Next step:** `/skill:xxx
 		// 支持格式：
-		//   **Next step:** `/skill:xxx  （英+加粗+反引号）
-		//   **下一步：** `/skill:xxx     （中+全角冒号+加粗）
-		//   下一步： /skill:xxx        （中+全角冒号+无加粗）
-		//   Next step: /skill:xxx      （英+无加粗）
+		//   **Next step:** `/skill:xxx          （英+加粗+反引号）
+		//   **下一步：** `/skill:xxx             （中+全角冒号+加粗）
+		//   下一步： /skill:xxx                  （中+全角冒号+无加粗）
+		//   Next step: /skill:xxx               （英+无加粗）
+		//   ### 下一步执行                       （markdown 标题）
+		//      /skill:implement                   （代码块内，隔多行）
 		regex:
-			/(?:\*\*)?(?:Next step|下一步)[：:]?(?:\*\*)?\s*[`'"\s]*\/skill:\S+/i,
+			/(?:\*\*|###\s+)?(?:Next step|下一步)(?:执行)?[：:]?(?:\*\*)?[\s\S]*?\/skill:\S+/i,
 	},
 	// 💬 Follow-up: — 技能结束时的后续提示
 	{
